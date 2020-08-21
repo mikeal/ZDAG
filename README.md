@@ -30,43 +30,47 @@ links | values | structure
 ## table
 
 ```
-0 - delimiter
-1 - varint
-2 - utf8 string reference
-3 - bytes reference
-4 - null
-5 - true
-6 - false
-7 - float
-8 - map
-9 - list
-10 + inline varint
+0 - 100 : inline varint
+100 : delimiter
+101 : varint
+102 : utf8 string reference
+103 : bytes reference
+104 : null
+105 : true
+106 : false
+107 : float
+108 : map
+109 : list
+110 : cid reference
+111+ : inline varint
 ```
 
 ### parsing a table entry
 
 We use `read()` to refer to the next read after this varint is read
 
-* 1 - If it's a varint then the next `read()` is the full varint value
-* 2 - The next `read()` is a varint for the index of the value and this value is a string value.
-* 3 - The next `read()` is a varint for the index of the value and this value is a bytes value.
-* 4 - This is null
-* 5 - This is true
-* 6 - This is false
-* 7 - The next two `read()`s are varints parsed into a float value.
-* 8 - All of the following `read()`s are in this `map` until a null byte
-  * The first `read()` is a reference to the value index and should be represented by a string key.
+* 100 - Reserved seperator
+* 101 - If it's a varint then the next `read()` is the full varint value
+* 102 - The next `read()` is a varint for the index of the value and this value is a string value.
+* 103 - The next `read()` is a varint for the index of the value and this value is a bytes value.
+* 104 - This is null
+* 105 - This is true
+* 106 - This is false
+* 107 - The next two `read()`s are varints parsed into a float value.
+* 108 - All of the following `read()`s are in this `map` until a null byte
+  * The first `read()` is a reference to the value index and should be represented by a string key. The index is offset by one here so that a null byte can be used to end the map.
   * The next `read()` is the map value and is a table entry table entry
   * recursively until you hit a null byte
-* 9 - All of the following `read()`s are in this `map` until a null byte
+* 109 - All of the following `read()`s are in this `list` until a 100 delimiter
   * Every `read()` is a table entry you hit a null byte
-* 10 + this `read()` is a varint value
+* 110 - The next `read()` is a varint for the index of the cid value.
+* 111 + this `read()` is a varint value
 
 ## cids and values
 
 ```
 | ...cids | null byte |
-| ...values(len | data) | null byte |
+| length | ...values(len | data) |
 | structure |
 ```
 
@@ -74,15 +78,15 @@ We use `read()` to refer to the next read after this varint is read
 
 ```
 | table entry |
-| [ 8, ...(string reference varint, table entry) ] | null byte // map
-| [ 9, ...(table entry) ] | null byte // list
+| [ 108, ...(string reference varint, table entry) ] | null byte // map
+| [ 109, ...(table entry) ] | null byte // list
 ```
 
-## value sorting algorithm
+## value and cid sorting algorithm
 
 * only the binary form is stored
-* sorted length first
-* then sorted by byte comparison
+* sort length first
+* then sort by byte comparison
 
 ## map sorting algorithm
 

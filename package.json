@@ -2,7 +2,7 @@
   "name": "r2d2",
   "version": "0.0.0",
   "description": "``` links | values | structure ```",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -11,5 +11,8 @@
   "license": "(Apache-2.0 AND MIT)",
   "dependencies": {
     "varint": "^5.0.0"
+  },
+  "devDependencies": {
+    "multiformats": "^3.0.3"
   }
 }
