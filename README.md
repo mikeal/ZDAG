@@ -38,8 +38,8 @@ parsing rules
 
 The first section is all the links (cids) and is ended by a null byte.
 
-The second section is all the values. The length of this section is the
-first varint, so there is no closing delimiter.
+The second section is all the *values* (map keys, string values, byte values).
+The length of this section is the first varint, so there is no closing delimiter.
 
 The third section is the actual value type structure, which will reference
 cids and string/byte values from the prior sections. Other types are written
