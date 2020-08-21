@@ -32,7 +32,7 @@ links | values | structure
 ```
 0 - 100 : inline varint
 100 : delimiter
-101 : varint
+101 : varint (100-110 only)
 102 : utf8 string reference
 103 : bytes reference
 104 : null
