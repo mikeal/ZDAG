@@ -27,11 +27,40 @@ Constraints:
 links | values | structure
 ```
 
+A block is broken into 3 parts and each part has different
+parsing rules
+
+```
+| ...cids | null byte |
+| length | ...values(len | data) |
+| structure |
+```
+
+The first section is all the links (cids) and is ended by a null byte.
+
+The second section is all the values. The length of this section is the
+first varint, so there is no closing delimiter.
+
+The third section is the actual value type structure, which will reference
+cids and string/byte values from the prior sections. Other types are written
+inline into the structure.
+
+```
+// each line is an structure example
+[ 0 ] // 0 int
+[ 1 ] // 1 int
+[ 101, 102 ] // 102 int (penalty byte due to conflict with table entries)
+[ 102, reference varint ] // string
+[ 103, reference varint ] // bytes
+[ 108, ...(reference varint, table entry) ] // map
+[ 109, ...(table entry) ] // list
+```
+
 ## table
 
 ```
 0 - 100 : inline varint
-100 : delimiter
+100 : list delimiter
 101 : varint (100-112 only)
 102 : utf8 string reference
 103 : bytes reference
@@ -182,22 +211,6 @@ We use `read()` to refer to the next read after this varint is read
 * 111 - The next `read(0)` is a signed varint, follow the varint parsing rules but make the value negative
 * 112 - The next `read(0)` is a signed float, follow float parsing rules but make the left side negative
 * 111 + This varint is the inline number value
-
-## cids and values
-
-```
-| ...cids | null byte |
-| length | ...values(len | data) |
-| structure |
-```
-
-## structure
-
-```
-| table entry |
-| [ 108, ...(string reference varint, table entry) ] | null byte // map
-| [ 109, ...(table entry) ] | null byte // list
-```
 
 ## value and cid sorting algorithm
 
