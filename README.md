@@ -1,23 +1,24 @@
 # r2d2
 
-Really Reliable De-Deplucation (<-- stretching!)
+Really Reliable De-Deplucation
 
 This is an experimental block format for IPLD. It leverages the
-constraints of the IPLD data model to reduce the bytes required
-in the format.
+constraints of the IPLD data model to shave as many bytes off
+the block format as we can without compression.
 
 Features:
 
 * fully deterministic
-* deduplicates common values (strings and bytes)
+* deduplicates common values (strings, bytes, map keys)
 * supports the full IPLD data model
 * links can be parsed without reading the entire block
 * paths can be read without fully parsing most values
+* some paths can even be ruled out of being available simply by checking
+  the lengths of potential map keys
 
 Constraints:
 
 * Does not support anything not in the IPLD data model
-  * Map keys can only be strings
 * Blocks must be written transactionally (no streaming)
 * Every serialization must be a single, complete value type
 

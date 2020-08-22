@@ -26,6 +26,20 @@ const entries = obj => Object.keys(obj).sort().map(k => [k, obj[k]])
 110 : cid reference
 */
 
+const compare = (b1, b2) => {
+  if (b1.byteLength > b2.byteLength) return -1
+  else if (b1.byteLength < b2.byteLength) return 1
+  else {
+    for (let i = 0;i < b1.byteLength; i++) {
+      const c1 = b1[i]
+      const c2 = b2[i]
+      if (c1 === c2) continue
+      if (c1 > c2) return -1
+      else return 1
+    }
+    return 0
+  }
+}
 
 export default multiformats => {
   const { CID } = multiformats
@@ -36,35 +50,39 @@ export default multiformats => {
       const entry = [ v, () => values.indexOf(entry) ]
       for (let i = 0; i < values.length; i++) {
         const value = values[i][0]
-        if (value.byteLength < v.byteLength) continue
-        else if (value.byteLength > v.byteLength) {
-          values.splice(i, 0, entry)
-          return entry[1]
-        } else {
-          // equal length
-          let cont = false
-          for (let i = 0; i < value.byteLength; i++) {
-            const int = value[i]
-            const comp = v[i]
-            if (int < comp) {
-              cont = true
-              break
-            } else if (int > comp) {
-              values.splice(i, 0, entry)
-              return entry[1]
-            }
-          }
-          if (!cont) {
-            // matched
-            return values[i][1]
-          }
+        const comp = compare(value, v)
+        if (comp === 0) {
+          return values[i][1]
         }
+        if (comp === -1) {
+          values.splice(i, 0 , entry)
+          return entry[1]
+        }
+        if (comp === 1) {
+          continue
+        }
+        throw new Error('Parser error')
       }
       values.push(entry)
       return entry[1]
     }
     const addCID = c => {
-      const entry = [ c, () => values.indexOf(entry) ]
+      const entry = [ c, () => cids.indexOf(entry) ]
+      for (let i = 0; i < cids.length; i++) {
+        const cid = cids[i][0]
+        const comp = compare(cid.bytes, c.bytes)
+        if (comp === 0) {
+          return cids[i][1]
+        }
+        if (comp === -1) {
+          cids.splice(i, 0 , entry)
+          return entry[1]
+        }
+        if (comp === 1) {
+          continue
+        }
+        throw new Error('Parser error')
+      }
       // TODO: sorted add
       cids.push(entry)
       return entry[1]
@@ -130,13 +148,13 @@ export default multiformats => {
             }
             return ret
           }
-          p(108, map, 100)
+          p(108, map, 0)
         }
       }
     }
     format(obj, structure)
     const encoded = []
-    cids.forEach(c => encoded.push(...c.bytes))
+    cids.forEach(([c]) => encoded.push(...c.bytes))
     encoded.push(0)
     let len = 0
     const val = []
@@ -145,6 +163,7 @@ export default multiformats => {
         val.push(0, ...bytes)
       } else {
         const increase = bytes.byteLength - len
+        if (increase < 0) throw new Error('Parser error: values out of order')
         len = bytes.byteLength
         val.push(...vint(increase), ...bytes)
       }
@@ -172,114 +191,125 @@ export default multiformats => {
     }
     return new Uint8Array(encoded)
   }
+
   const decode = bytes => {
     const cids = []
     const values = []
-    let i = 0
 
     // Parse CIDs
-    while (i < bytes.byteLength ) {
-      const [ code, offset ] = dvint(bytes.subarray(i))
-      const start = i
-      i += offset
+    while (bytes.byteLength) {
+      let cid
+      const [ code, offset ] = dvint(bytes)
       if (code === 0) {
+        bytes = bytes.subarray(offset)
         break
       }
       if (code === 18) {
         // CIDv0
-        const [ length, offset ] = dvint(bytes.subarray(i))
-        i += ( length + offset )
-        const cid = CID.from(bytes.subarray(start, i))
-        cids.push(cid)
-        continue
-      }
-      if (code > 2) {
+        const [ length, _offset ] = dvint(bytes.subarray(offset))
+        const size = length + offset + _offset
+        cid = CID.from(bytes.subarray(0, size))
+        bytes = bytes.subarray(size)
+      } else {
+        if (code > 1) throw new Error('nope!')
+        let i = offset
         const add = () => {
-          const [ val, offset ] = vint(bytes.subarray(i))
+          const [ val, offset ] = dvint(bytes.subarray(i))
           i += offset
           return val
         }
         add()
         add()
         i += add()
-        const cid = CID.from(bytes.subarray(start, i))
+        i += 1
+        cid = CID.from(bytes.subarray(0, i))
+        bytes = bytes.subarray(i)
       }
+      cids.push(cid)
     }
 
-    // Parse Values
-    const [ valuesLength, offset ] = dvint(bytes.subarray(i))
-    i += offset
-    const endValues = i + valuesLength
+    const [ valuesLength, offset ] = dvint(bytes)
+    let section = bytes.subarray(offset, offset + valuesLength)
+    bytes = bytes.subarray(offset + valuesLength)
+
     let len = 0
-    while (i < endValues) {
-      const [ increase, offset ] = dvint(bytes.subarray(i))
+    while (section.byteLength) {
+      const [ increase, offset ] = dvint(section)
       len += increase
-      i += offset
-      const value = bytes.subarray(i, i + len)
-      values.push(value)
-      i += len
+      section = section.subarray(offset)
+      values.push(section.subarray(0, len))
+      section = section.subarray(len)
     }
-    // Parse Structure
 
     const read = () => {
-      const [ code, offset ] = dvint(bytes.subarray(i))
-      i += offset
+      const [ code, offset ] = dvint(bytes)
+      bytes = bytes.subarray(offset)
       return code
     }
 
-    const parse = (parent) => {
-      while (i < bytes.byteLength) {
-        const code = read()
-        if (code < 100 || code > 112) {
-          return code
+    const parse = () => {
+      const [ code, offset ] = dvint(bytes)
+      bytes = bytes.subarray(offset)
+      if (code < 100 || code > 112) {
+        return code
+      }
+      if (code === 101) {
+        return read()
+      }
+      if (code === 111) {
+        return -read()
+      }
+      if (code === 100) {
+        throw new Error('Invalid separator')
+      }
+      if (code === 102) {
+        return toString(values[read()])
+      }
+      if (code === 103) {
+        return values[read()]
+      }
+      if (code === 110) {
+        const i = read()
+        return cids[i]
+      }
+      if (code === 104) return null
+      if (code === 105) return true
+      if (code === 106) return false
+      if (code === 107) return doubleToFloat([read(), read()])
+      if (code === 112) return doubleToFloat([-read(), read()])
+      if (code === 108) {
+        const ret = {}
+        let code = read()
+        let index = 0
+        while (code !== 0 && bytes.byteLength > 1) {
+          code = code - 1
+          index += code
+          const key = toString(values[index])
+          ret[key] = parse()
+          code = read()
         }
-        if (code === 101) {
-          return read()
-        }
-        if (code === 111) {
-          return -read()
+        return ret
+      }
+      if (code === 109) {
+        const ret = []
+        let [ code ] = dvint(bytes)
+        while (code !== 100 && bytes.byteLength > 1) {
+          ret.push(parse())
+          code = dvint(bytes)[0]
         }
         if (code === 100) {
-          if (!parent) throw new Error('Invalid separator')
-          return parent
+          bytes = bytes.subarray(1)
         }
-        if (code === 102) {
-          return toString(values[read()])
-        }
-        if (code === 103) {
-          return values[read()]
-        }
-        if (code === 104) return null
-        if (code === 105) return true
-        if (code === 106) return false
-        if (code === 107) return doubleToFloat([read(), read()])
-        if (code === 112) return doubleToFloat([-read(), read()])
-        if (code === 108) {
-          const ret = {}
-          let code = read()
-          let index = 0
-          while (code !== 0 && i < bytes.byteLength) {
-            code = code - 1
-            index += code
-            const key = toString(values[index])
-            ret[key] = parse()
-            code = read()
-          }
-          return ret
-        }
-        if (code === 109) {
-          const ret = []
-          let [ code ] = vint(bytes.subarray(i))
-          while (code !== 100 && i < bytes.byteLength) {
-            ret.push(parse())
-            code = vint(bytes.subarray(i))[0]
-          }
-          return ret
-        }
+        return ret
       }
-      throw new Error('parsing error')
+      throw new Error('parser error')
     }
-    return parse()
+    const ret = parse()
+    if (bytes.byteLength) {
+      throw new Error('parser error')
+    }
+
+    return ret
   }
   return { encode, decode }
 }
