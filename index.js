@@ -1,4 +1,5 @@
 import varint from 'varint'
+import pako from 'pako'
 
 const isFloat = n => Number(n) === n && n % 1 !== 0
 
@@ -53,7 +54,7 @@ const compare = (b1, b2) => {
 
 export default multiformats => {
   const { CID } = multiformats
-  const encode = obj => {
+  const encode = (obj, compress=false) => {
     const cids = []
     const values = []
     const addValue = v => {
@@ -176,8 +177,14 @@ export default multiformats => {
         val.push(...vint(increase), ...bytes)
       }
     }
-    encoded.push(...vint(val.length))
-    encoded.push(...val)
+    if (compress && val.length) {
+      const compressed = pako.deflate(new ArrayBuffer(val))
+      encoded.push(...vint(compressed.byteLength))
+      encoded.push(...compressed)
+    } else {
+      encoded.push(...vint(val.length))
+      encoded.push(...val)
+    }
     const build = container => {
       for (const i of container) {
         if (typeof i === 'number') encoded.push(i)
@@ -200,7 +207,7 @@ export default multiformats => {
     return new Uint8Array(encoded)
   }
 
-  const decode = bytes => {
+  const decode = (bytes, compress=false) => {
     const cids = []
     const values = []
 
@@ -239,6 +246,10 @@ export default multiformats => {
     const [ valuesLength, offset ] = dvint(bytes)
     let section = bytes.subarray(offset, offset + valuesLength)
     bytes = bytes.subarray(offset + valuesLength)
+
+    if (compress && section.byteLength) {
+      section = pako.inflate(section)
+    }
 
     let len = 0
     while (section.byteLength) {

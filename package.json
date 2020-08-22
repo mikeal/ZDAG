@@ -10,7 +10,8 @@
   "author": "Mikeal Rogers <mikeal.rogers@gmail.com> (https://www.mikealrogers.com/)",
   "license": "(Apache-2.0 AND MIT)",
   "dependencies": {
-    "varint": "^5.0.0"
+    "varint": "^5.0.0",
+    "pako": "^1.0.11"
   },
   "devDependencies": {
     "multiformats": "^3.0.3",
