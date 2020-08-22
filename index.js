@@ -185,6 +185,11 @@ export default multiformats => {
       encoded.push(...vint(val.length))
       encoded.push(...val)
     }
+    let inline
+    if (encoded.length === 2) {
+      encoded.splice(0, 2)
+      inline = true
+    }
     const build = container => {
       for (const i of container) {
         if (typeof i === 'number') encoded.push(i)
@@ -204,6 +209,12 @@ export default multiformats => {
       // remove delimiter when structure is map or list
       structure.pop()
     }
+    if (inline) {
+      const [ code ] = encoded
+      if (code < 19) {
+        encoded.splice(0, 0, 101)
+      }
+    }
     return new Uint8Array(encoded)
   }
 
@@ -211,53 +222,67 @@ export default multiformats => {
     const cids = []
     const values = []
 
-    // Parse CIDs
-    while (bytes.byteLength) {
-      let cid
-      const [ code, offset ] = dvint(bytes)
-      if (code === 0) {
-        bytes = bytes.subarray(offset)
-        break
-      }
-      if (code === 18) {
-        // CIDv0
-        const [ length, _offset ] = dvint(bytes.subarray(offset))
-        const size = length + offset + _offset
-        cid = CID.from(bytes.subarray(0, size))
-        bytes = bytes.subarray(size)
-      } else {
-        if (code > 1) throw new Error('nope!')
-        let i = offset
-        const add = () => {
-          const [ val, offset ] = dvint(bytes.subarray(i))
-          i += offset
-          return val
+    const parseLinks = () => {
+      // Parse CIDs
+      while (bytes.byteLength) {
+        let cid
+        const [ code, offset ] = dvint(bytes)
+        if (code === 0) {
+          bytes = bytes.subarray(offset)
+          break
         }
-        add()
-        add()
-        i += add()
-        i += 1
-        cid = CID.from(bytes.subarray(0, i))
-        bytes = bytes.subarray(i)
+        if (code === 18) {
+          // CIDv0
+          const [ length, _offset ] = dvint(bytes.subarray(offset))
+          const size = length + offset + _offset
+          cid = CID.from(bytes.subarray(0, size))
+          bytes = bytes.subarray(size)
+        } else {
+          if (code > 1) throw new Error('nope!')
+          let i = offset
+          const add = () => {
+            const [ val, offset ] = dvint(bytes.subarray(i))
+            i += offset
+            return val
+          }
+          add()
+          add()
+          i += add()
+          i += 1
+          cid = CID.from(bytes.subarray(0, i))
+          bytes = bytes.subarray(i)
+        }
+        cids.push(cid)
       }
-      cids.push(cid)
     }
 
-    const [ valuesLength, offset ] = dvint(bytes)
-    let section = bytes.subarray(offset, offset + valuesLength)
-    bytes = bytes.subarray(offset + valuesLength)
+    const parseValues = () => {
+      const [ valuesLength, offset ] = dvint(bytes)
+      let section = bytes.subarray(offset, offset + valuesLength)
+      bytes = bytes.subarray(offset + valuesLength)
 
-    if (compress && section.byteLength) {
-      section = pako.inflate(section)
+      if (compress && section.byteLength) {
+        section = pako.inflate(section)
+      }
+
+
+      let len = 0
+      while (section.byteLength) {
+        const [ increase, offset ] = dvint(section)
+        len += increase
+        section = section.subarray(offset)
+        values.push(section.subarray(0, len))
+        section = section.subarray(len)
+      }
     }
 
-    let len = 0
-    while (section.byteLength) {
-      const [ increase, offset ] = dvint(section)
-      len += increase
-      section = section.subarray(offset)
-      values.push(section.subarray(0, len))
-      section = section.subarray(len)
+    const [ code ] = bytes
+    let inline = false
+    if (code > 19) {
+      inline = true
+    } else {
+      parseLinks()
+      parseValues()
     }
 
     const read = () => {
@@ -273,7 +298,25 @@ export default multiformats => {
         return code
       }
       if (code === 101) {
-        return read()
+        /* 101 is for inline varints that fall in a required range
+         * the acceptable uses are limited to ensure determinism and
+         * must be validated.
+         */
+        const i = read()
+
+        if (i < 100 || i > 112) {
+          if (inline) {
+            if (i > 18) {
+              const errMsg = 'Parser error: can only use 101 when structure is inline varint below 19'
+              throw new Error(errMsg)
+            }
+            inline = false // this can only be used to open the structure
+            return i
+          }
+          throw new Error('Can only use 101 to inline inters in the protected range')
+        } else {
+        }
+        return i
       }
       if (code === 111) {
         return -read()

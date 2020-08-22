@@ -62,7 +62,7 @@ inline into the structure.
 ```
 0 - 100 : inline varint
 100 : list delimiter
-101 : varint (100-112 only)
+101 : varint (limited allowable use)
 102 : utf8 string reference
 103 : bytes reference
 104 : null
@@ -228,4 +228,9 @@ We use `read()` to refer to the next read after this varint is read
 
 All optimizatios are required in order to guarantee determinism.
 
+## Inline Structure when no Links or Values
+
+When no links or values are present the two nullbytes should be dropped. If the first
+byte in the structure is less than 19 (lower will conflict with CIDv0 and other potential
+future multiformats), you must prepend 101.
 
