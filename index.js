@@ -8,7 +8,17 @@ const { floor } = Math
 const fromString = str => (new TextEncoder()).encode(str)
 const toString = b => (new TextDecoder()).decode(b)
 
-const doubleToFloat = ([i, d]) => parseFloat(i + '.' + d)
+const doubleToFloat = ([mantissa, int]) => int / Math.pow(10, mantissa)
+
+const floatToDouble = float => {
+  let mantissa = 0
+  while (isFloat(float)) {
+    float = float * 10
+    mantissa += 1
+  }
+  if (mantissa === 0) throw new Error('Not float')
+  return [ ...vint(mantissa), ...vint(float) ]
+}
 
 const entries = obj => Object.keys(obj).sort().map(k => [k, obj[k]])
 
@@ -99,14 +109,12 @@ export default multiformats => {
       }
       else if (typeof o === 'number') {
         if (isFloat(o)) {
-          const s = o.toString()
           if (o < 0) {
-            const [ left, right ] = s.split('.').map(s => parseInt(s))
             p(112)
-            p(...vint(-left), ...vint(right))
+            p(...floatToDouble(o * -1))
           } else {
             p(107)
-            s.split('.').forEach(s => p(...vint(parseInt(s))))
+            p(...floatToDouble(o))
           }
         } else {
           if (o < 0) p(111, ...vint(-o))
@@ -276,7 +284,7 @@ export default multiformats => {
       if (code === 105) return true
       if (code === 106) return false
       if (code === 107) return doubleToFloat([read(), read()])
-      if (code === 112) return doubleToFloat([-read(), read()])
+      if (code === 112) return -doubleToFloat([read(), read()])
       if (code === 108) {
         const ret = {}
         let code = read()

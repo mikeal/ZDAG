@@ -147,14 +147,14 @@ For negative integers:
 For positive floats:
 
 * write 107
-* write the left side of the decimal as a varint
-* write the right side of the decimal as a varint
+* write the mantissa length as a varint
+* write the integer for the full value (float divided by Math.pow(10, mantissaLength)) as a varint
 
 For negative floats:
 
 * write 112
-* write the left side of the decimal as a varint
-* write the right side of the decimal as a varint
+* write the mantissa length as a varint
+* write the integer for the full value (float divided by Math.pow(10, mantissaLength)) as a varint
 
 #### writing constants (null, true, false)
 
@@ -223,3 +223,9 @@ We use `read()` to refer to the next read after this varint is read
 
 * map keys are sorted by their string value reference number
 * this means the map sorting naturally corresponds to the value sorting algorithm
+
+# Optimizations
+
+All optimizatios are required in order to guarantee determinism.
+
+

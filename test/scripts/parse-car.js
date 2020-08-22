@@ -41,12 +41,12 @@ const run = async () => {
     add(codec + '-data', length)
     add('data', length)
     const obj = fixBuffer(block.decodeUnsafe())
+    const u = o => new Uint8Array([...o])
     const encoded = r2d2.encode(obj)
     const decoded = r2d2.decode(encoded)
     add('r2d2', encoded.byteLength)
-    same(decoded, obj)
+    // same(decoded, obj)
   }
   console.log(metrics)
-  console.log({car})
 }
 run()
