@@ -21,6 +21,13 @@ const floatToDouble = float => {
   return [ ...vint(mantissa), ...vint(float) ]
 }
 
+// get multihash length
+const mhl = h => {
+  const [ , offset ] = dvint(h)
+  const [ length ] = dvint(h.subarray(offset))
+  return length
+}
+
 const entries = obj => Object.keys(obj).sort().map(k => [k, obj[k]])
 
 /* Table
@@ -49,6 +56,16 @@ const compare = (b1, b2) => {
       else return 1
     }
     return 0
+  }
+}
+
+const compareCIDs = (c1, c2) => {
+  if (c1.version > c2.version) return -1
+  else if (c1.version > c2.version) return 1
+  else {
+    if (c1.code > c2.code) return -1
+    if (c1.code < c2.code) return 1
+    return compare(c1.multihash, c2.multihash)
   }
 }
 
@@ -81,7 +98,7 @@ export default multiformats => {
       const entry = [ c, () => cids.indexOf(entry) ]
       for (let i = 0; i < cids.length; i++) {
         const cid = cids[i][0]
-        const comp = compare(cid.bytes, c.bytes)
+        const comp = compareCIDs(cid, c)
         if (comp === 0) {
           return cids[i][1]
         }
@@ -163,7 +180,35 @@ export default multiformats => {
     }
     format(obj, structure)
     const encoded = []
-    cids.forEach(([c]) => encoded.push(...c.bytes))
+    let prefix = [ 0, 112, 18 ]
+    /* i think the vm does something fancy here because this is faster
+     * than it should be.
+     */
+    const match = (a1, a2) => JSON.stringify(a1) === JSON.stringify(a2)
+    const shouldCompress = cid => {
+      const [ hashfn ] = dvint(cid.multihash)
+      const pre = [ cid.version, cid.code, hashfn ]
+      if (match(prefix, pre)) {
+        return true
+      }
+      prefix = pre
+      return false
+    }
+    if (cids.length && cids[0][0].version === 0) {
+      encoded.push(18)
+    }
+    for (const [ cid ] of cids) {
+      if (mhl(cid.multihash) < 4) {
+        encoded.push(...cid.bytes)
+        continue
+      }
+      if (shouldCompress(cid)) {
+        const [ , offset ] = dvint(cid.multihash)
+        encoded.push(...cid.multihash.subarray(offset))
+      } else {
+        encoded.push(...cid.bytes)
+      }
+    }
     encoded.push(0)
     let len = 0
     const val = []
@@ -207,7 +252,7 @@ export default multiformats => {
     const [ code ] = structure
     if (code === 108 || code == 109) {
       // remove delimiter when structure is map or list
-      structure.pop()
+      encoded.pop()
     }
     if (inline) {
       const [ code ] = encoded
@@ -224,35 +269,50 @@ export default multiformats => {
 
     const parseLinks = () => {
       // Parse CIDs
+      let inV0 = true
+      let prefix = [ ]
       while (bytes.byteLength) {
         let cid
-        const [ code, offset ] = dvint(bytes)
+        let length
+        let [ code, offset ] = dvint(bytes)
+        if (code === 3) throw new Error('sdf')
         if (code === 0) {
           bytes = bytes.subarray(offset)
           break
         }
+
+        bytes = bytes.subarray(offset)
         if (code === 18) {
-          // CIDv0
-          const [ length, _offset ] = dvint(bytes.subarray(offset))
-          const size = length + offset + _offset
-          cid = CID.from(bytes.subarray(0, size))
-          bytes = bytes.subarray(size)
-        } else {
-          if (code > 1) throw new Error('nope!')
-          let i = offset
-          const add = () => {
-            const [ val, offset ] = dvint(bytes.subarray(i))
-            i += offset
-            return val
+          ;[ length, offset ] = dvint(bytes)
+          while (length > 4) {
+            const digest = bytes.subarray(0, offset + length)
+            const cid = CID.create(0, 112, new Uint8Array([18, ...digest]))
+            bytes = bytes.subarray(offset + length)
+            ;[length, offset] = dvint(bytes)
+            cids.push(cid)
           }
-          add()
-          add()
-          i += add()
-          i += 1
-          cid = CID.from(bytes.subarray(0, i))
-          bytes = bytes.subarray(i)
         }
-        cids.push(cid)
+        if (code === 1) {
+          const version = 1
+          const [ codec, offset1 ] = dvint(bytes)
+          bytes = bytes.subarray(offset1)
+          const [ hashfn, offset2 ] = dvint(bytes)
+          let [ length, offset3 ] = dvint(bytes.subarray(offset2))
+          const size = offset2 + length + offset3
+          const multihash = bytes.subarray(0, size)
+          bytes = bytes.subarray(size)
+          const cid = CID.create(version, codec, multihash)
+          cids.push(cid)
+
+          ;[ length, offset ] = dvint(bytes)
+          while (length > 4) {
+            const digest = bytes.subarray(0, offset + length)
+            const cid = CID.create(version, code, new Uint8Array([...vint(hashfn), ...digest]))
+            bytes = bytes.subarray(offset + length)
+            ;[length, offset] = dvint(bytes)
+            cids.push(cid)
+          }
+        }
       }
     }
 
@@ -343,7 +403,7 @@ export default multiformats => {
         const ret = {}
         let code = read()
         let index = 0
-        while (code !== 0 && bytes.byteLength > 1) {
+        while (code !== 0 && bytes.byteLength) {
           code = code - 1
           index += code
           const key = toString(values[index])
@@ -353,11 +413,14 @@ export default multiformats => {
         return ret
       }
       if (code === 109) {
+        if (!bytes.byteLength) return []
         const ret = []
         let [ code ] = dvint(bytes)
-        while (code !== 100 && bytes.byteLength > 1) {
+        while (code !== 100 && bytes.byteLength) {
           ret.push(parse())
-          code = dvint(bytes)[0]
+          if (bytes.byteLength) {
+            code = dvint(bytes)[0]
+          }
         }
         if (code === 100) {
           bytes = bytes.subarray(1)
@@ -368,6 +431,7 @@ export default multiformats => {
     }
     const ret = parse()
     if (bytes.byteLength) {
+      console.log({bytes})
       throw new Error('parser error')
     }
 
