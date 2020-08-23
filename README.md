@@ -219,7 +219,7 @@ We use `read()` to refer to the next read after this varint is read
 * 110 - The next `read()` is a varint for the index of the cid value.
 * 111 - The next `read(0)` is a signed varint, follow the varint parsing rules but make the value negative
 * 112 - The next `read(0)` is a signed float, follow float parsing rules but make the left side negative
-* 111 + This varint is the inline number value
+* 113+ - This varint is the inline number value
 
 ## value and cid sorting algorithm
 
