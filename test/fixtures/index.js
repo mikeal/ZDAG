@@ -33,6 +33,14 @@ add('list with constants', [ true, false, null, 0, 1 ])
 add('nested list', [ [ [ [ [ null, 0, null ] ], [ null ] ] ], null])
 add('nested map', { hello: { world: null, nest: { again: 213 } } })
 
+const bin = new Uint8Array([1,2,3,4])
+const bin2 = new Uint8Array([5, ...bin])
+const bin3 = new Uint8Array([6, ...bin])
+add('binary 1,2,3,4', bin)
+add('binary in list' , [ bin, bin, bin2, bin3 ])
+add('binary with ints in list', [ bin, 0, 1, 2, bin, 123123914342, bin2, bin3 ])
+add('binary in lists of lists', [ bin, [ bin2, bin3, 32423423], [ [ bin3 ] ]])
+
 const kitchenSink = {
   arr: [ true, [ false, {}, null ] ],
   map: { x: 'x', y: 'y', z: 'z', hello: { world: 'test' } },
@@ -45,12 +53,14 @@ add('kitchen sink', kitchenSink)
 const copy = o => JSON.parse(JSON.stringify(o))
 
 const create = async () => {
-  const hash = await multiformats.multihash.hash(Buffer.from('abc'), 'sha2-256')
+  const createHash = s => multiformats.multihash.hash(Buffer.from(s), 'sha2-256')
+  const hash = await createHash('abc')
   const cidv0 = CID.create(0, 112, hash)
   const cidv1 = CID.create(1, 0x71, hash)
+  const cid2 = CID.create(1, 0x71, await createHash('asdfasdf'))
   add('link cidv0', cidv0)
   add('link cidv1', cidv1)
-  add('list with links', [ cidv0, cidv1, cidv0, cidv1 ])
+  add('list with links', [ cidv0, cidv1, cidv0, cidv1, cid2 ])
   add('map with links', { helloV0: cidv0, helloV1: cidv1 })
   const sink = copy(kitchenSink)
   sink.cidv0 = cidv0
@@ -59,6 +69,21 @@ const create = async () => {
   sink.map.cidv0 = cidv0
   sink.map.cidvv1 = cidv1
   add('kitchen sink w/ links', sink)
+
+  add('chain-1', [
+    new Uint8Array([ 0, 234, 7 ]),
+    [ [ bin ] ],
+    [ 1, [ bin3 ] ],
+    [ [ [ [ bin2 ] ] ] ],
+    [ [ 21312321 ] ],
+    [ cidv1 ],
+    new Uint8Array([ 0, 1, 32, 220, 250]),
+    1145,
+    CID.from('bafy2bzaceaodj25diqmdntxag4lrm5mdzzuudxh4rsw3ltmbk7ibkmm7mzwwg'),
+    CID.from('bafy2bzaceb7htmtblp2wnk556i4hiextoqm2c6y537z3hxsvk5l6q3tk3dijq'),
+    CID.from('bafy2bzacea3722ekjft7sfhdz2en2mfnxchyc4hgzaraqd2jmhuk52urs25ok')
+  ])
+
   return fixtures
 }
 

@@ -34,7 +34,7 @@ const run = async (compress) => {
   const metrics = {compress}
   const add = (name, i) => {
     if (!metrics[name]) metrics[name] = 0n
-    metrics[name] += i
+    metrics[name] += BigInt(i)
   }
   for await (const { key, value } of car.query()) {
     const block = Block.create(value, key)
@@ -47,20 +47,28 @@ const run = async (compress) => {
     let start = time()
     const _decode = block.decodeUnsafe()
     add('dag-cbor decode time', time() - start)
-    start = time()
+    // start = time()
     // Block.encoder(_decode, 'dag-cbor').encodeUnsafe()
-    add('dag-cbor encode time', time() - start)
+    // add('dag-cbor encode time', time() - start)
     start = time()
     const encoded = r2d2.encode(_decode, compress)
     add('encode time', time() - start)
+    add('r2d2', encoded.byteLength)
+    /*
     start = time()
     const decoded = r2d2.decode(encoded, compress)
     add('decode time', time() - start)
-    add('r2d2', encoded.byteLength)
-    same(decoded, fixBuffer(_decode))
+    try {
+      same(decoded, fixBuffer(_decode))
+    } catch (e) {
+      console.log({ decode: _decode})
+      console.log({ decoded })
+    }
+    */
   }
   console.log(metrics)
+  console.log(`r2d2 is ${Number(metrics.r2d2 * 100n / metrics.data) / 100 } of dag-cbor`)
 }
-// run(false).then(() => {
+run(false).then(() => {
   run(true)
-// })
+})

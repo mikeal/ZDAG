@@ -209,7 +209,7 @@ export default multiformats => {
       }
     }
     if (compress && val.length) {
-      const compressed = pako.deflate(new ArrayBuffer(val))
+      const compressed = pako.deflate(val)
       encoded.push(...vint(compressed.byteLength))
       encoded.push(...compressed)
     } else {
@@ -293,7 +293,7 @@ export default multiformats => {
           ;[ length, offset ] = dvint(bytes)
           while (length > 4) {
             const digest = bytes.subarray(0, offset + length)
-            const cid = CID.create(version, code, new Uint8Array([...vint(hashfn), ...digest]))
+            const cid = CID.create(version, codec, new Uint8Array([...vint(hashfn), ...digest]))
             bytes = bytes.subarray(offset + length)
             ;[length, offset] = dvint(bytes)
             cids.push(cid)
@@ -369,15 +369,22 @@ export default multiformats => {
       if (code === 100) {
         throw new Error('Invalid separator')
       }
-      if (code === 102) {
-        return toString(values[read()])
-      }
-      if (code === 103) {
-        return values[read()]
+      if (code === 102 || code === 103) {
+        const i = read()
+        const bin = values[i]
+        if (typeof bin === 'undefined') {
+          throw new Error(`Parser error: missing value ref ${i}, valueLength(${values.length})`)
+        }
+        if (code === 102) return toString(bin)
+        return bin
       }
       if (code === 110) {
         const i = read()
-        return cids[i]
+        const c = cids[i]
+        if (typeof c === 'undefined') {
+          throw new Error(`Parser error: missing value ref ${i}, linksLength(${cids.length})`)
+        }
+        return c
       }
       if (code === 104) return null
       if (code === 105) return true
@@ -417,7 +424,6 @@ export default multiformats => {
     }
     const ret = parse()
     if (bytes.byteLength) {
-      console.log({bytes})
       throw new Error('parser error')
     }
 
