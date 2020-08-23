@@ -30,20 +30,6 @@ const mhl = h => {
 
 const entries = obj => Object.keys(obj).sort().map(k => [k, obj[k]])
 
-/* Table
-100 : delimiter
-101 : varint
-102 : utf8 string reference
-103 : bytes reference
-104 : null
-105 : true
-106 : false
-107 : float
-108 : map
-109 : list
-110 : cid reference
-*/
-
 const compare = (b1, b2) => {
   if (b1.byteLength > b2.byteLength) return -1
   else if (b1.byteLength < b2.byteLength) return 1
@@ -136,7 +122,7 @@ export default multiformats => {
           }
         } else {
           if (o < 0) p(111, ...vint(-o))
-          else if (o > 99 && o < 113) p(101, ...vint(o))
+          else if (o > 99 && o < 116) p(101, ...vint(o))
           else p(...vint(o))
         }
       }
@@ -325,7 +311,6 @@ export default multiformats => {
         section = pako.inflate(section)
       }
 
-
       let len = 0
       while (section.byteLength) {
         const [ increase, offset ] = dvint(section)
@@ -364,7 +349,7 @@ export default multiformats => {
          */
         const i = read()
 
-        if (i < 100 || i > 112) {
+        if (i < 100 || i > 115) {
           if (inline) {
             if (i > 18) {
               const errMsg = 'Parser error: can only use 101 when structure is inline varint below 19'

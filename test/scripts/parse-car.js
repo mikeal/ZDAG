@@ -27,6 +27,8 @@ const fixBuffer = obj => {
 
 const u = o => new Uint8Array([...o])
 
+const time = () => process.hrtime.bigint()
+
 const run = async (compress) => {
   const car = await CAR.readFileComplete(file)
   const metrics = {compress}
@@ -42,23 +44,23 @@ const run = async (compress) => {
     const length = block.encodeUnsafe().length
     add(codec + '-data', length)
     add('data', length)
-    let start = Date.now()
+    let start = time()
     const _decode = block.decodeUnsafe()
-    add('dag-cbor decode time', Date.now() - start)
-    // const obj = fixBuffer(_decode)
-    // start = Date.now()
+    add('dag-cbor decode time', time() - start)
+    start = time()
     // Block.encoder(_decode, 'dag-cbor').encodeUnsafe()
-    add('dag-cbor encode time', Date.now() - start)
-    start = Date.now()
+    add('dag-cbor encode time', time() - start)
+    start = time()
     const encoded = r2d2.encode(_decode, compress)
-    add('encode time', Date.now() - start)
-    // start = Date.now()
-    // const decoded = r2d2.decode(encoded, compress)
-    // add('decode time', Date.now() - start)
+    add('encode time', time() - start)
+    start = time()
+    const decoded = r2d2.decode(encoded, compress)
+    add('decode time', time() - start)
     add('r2d2', encoded.byteLength)
+    same(decoded, fixBuffer(_decode))
   }
   console.log(metrics)
 }
-run(false).then(() => {
+// run(false).then(() => {
   run(true)
-})
+// })

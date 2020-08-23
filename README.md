@@ -82,7 +82,10 @@ inline into the structure.
 110 : cid reference
 111 : signed varint
 112 : signed float
-113+ : inline varint
+113 : zero point float (not implemented)
+114 : typed map (not implemented)
+115 : typed list (not implemented)
+116+ : inline varint
 ```
 
 ## writing cids
@@ -217,9 +220,12 @@ We use `read()` to refer to the next read after this varint is read
 * 109 - All of the following `read()`s are in this `list` until a 100 delimiter
   * Every `read()` is a table entry you hit a 100 delimiter
 * 110 - The next `read()` is a varint for the index of the cid value.
-* 111 - The next `read(0)` is a signed varint, follow the varint parsing rules but make the value negative
-* 112 - The next `read(0)` is a signed float, follow float parsing rules but make the left side negative
-* 113+ - This varint is the inline number value
+* 111 - The next `read()` is a signed varint, follow the varint parsing rules but make the value negative
+* 112 - The next `read()` is a signed float, follow float parsing rules but make the left side negative
+* 113 - The next `read()` is a zero point float, the next varint is the integer representing the mantissa below zero. (not implemented)
+* 114 - Typed map (not implemented)
+* 115 - Typed list (not implemented)
+* 116+ - This varint is the inline number value
 
 ## value and cid sorting algorithm
 
@@ -292,4 +298,10 @@ All optimizations are required in order to guarantee determinism.
 When no links or values are present the two nullbytes should be dropped. If the first
 byte in the structure is less than 19 (lower will conflict with CIDv0 and other potential
 future multiformats), you must prepend 101.
+
+## Typed lists and maps (not implemented)
+
+Any map or list that has more than 1 value and only has entries that are of the same type,
+and that type is not integer, MUST use typed lists and maps.
+
 
