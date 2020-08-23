@@ -33,7 +33,7 @@ const run = async (compress) => {
   const car = await CAR.readFileComplete(file)
   const metrics = {compress}
   const add = (name, i) => {
-    if (!metrics[name]) metrics[name] = 0
+    if (!metrics[name]) metrics[name] = 0n
     metrics[name] += i
   }
   for await (const { key, value } of car.query()) {
