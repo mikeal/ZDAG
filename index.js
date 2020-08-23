@@ -400,6 +400,7 @@ export default multiformats => {
       if (code === 107) return doubleToFloat([read(), read()])
       if (code === 112) return -doubleToFloat([read(), read()])
       if (code === 108) {
+        if (!bytes.byteLength) return {}
         const ret = {}
         let code = read()
         let index = 0
@@ -408,7 +409,7 @@ export default multiformats => {
           index += code
           const key = toString(values[index])
           ret[key] = parse()
-          code = read()
+          if (bytes.byteLength) code = read()
         }
         return ret
       }
