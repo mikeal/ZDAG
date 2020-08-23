@@ -9,12 +9,20 @@ the block format as we can without compression.
 Features:
 
 * fully deterministic
-* deduplicates common values (strings, bytes, map keys)
+* deduplicates (compresses) common values like strings, bytes, map keys.
+* deduplicates (compresses) all links (cids)
 * supports the full IPLD data model
 * links can be parsed without reading the entire block
+* link prefixes are de-duplicated (compressed)
+* (experiment) value data compression.
+  * by compressing the string/byte value and map key data separate from
+    the links and structure we target only the most easily compressable
+    data.
 * paths can be read without fully parsing most values
 * some paths can even be ruled out of being available simply by checking
   the lengths of potential map keys
+
+## Experimental Value Compression
 
 Constraints:
 
@@ -215,9 +223,60 @@ We use `read()` to refer to the next read after this varint is read
 
 ## value and cid sorting algorithm
 
+### value sorting rules
+
 * only the binary form is stored
 * sort length first
 * then sort by byte comparison
+
+### cid sorting / compression rules
+
+The link section of the block is sorted with CID specific rules in order
+to compress the links by de-duplicating common prefixes.
+
+* All CIDv0 entries come first.
+* All cid's with a digest length greater than 4 are compressed by common prefixes.
+  * It's possible to have an identity multihash with a valid length below zero. These
+    must be written serially ordered by length first
+
+The sorting of CIDs:
+
+```
+[ 18 ] [ length=32 ] [ digest-1 ]
+[ 18 ] [ length=32 ] [ digest-2 ]
+[ 1 , codec=1, hashfn=1 ] [ length=0 ] [ ]
+[ 1 , codec=1, hashfn=1 ] [ length=1 ] [ 1 ]
+[ 1 , codec=1, hashfn=1 ] [ length=1 ] [ 2 ]
+[ 1 , codec=1, hashfn=1 ] [ length=245 ] [ digest-1 ]
+[ 1 , codec=1, hashfn=1 ] [ length=245 ] [ digest-2 ]
+[ 1 , codec=1, hashfn=1 ] [ length=245 ] [ digest-3 ]
+[ 1 , codec=1, hashfn=1 ] [ length=250 ] [ digest-1 ]
+[ 1 , codec=1, hashfn=1 ] [ length=250 ] [ digest-2 ]
+[ 1 , codec=1, hashfn=1 ] [ length=250 ] [ digest-3 ]
+[ 1 , codec=2, hashfn=1 ] [ length=250 ] [ digest-1 ]
+[ 1 , codec=2, hashfn=1 ] [ length=250 ] [ digest-2 ]
+[ 1 , codec=2, hashfn=2 ] [ length=250 ] [ digest-1 ]
+[ 1 , codec=2, hashfn=2 ] [ length=250 ] [ digest-2 ]
+```
+
+Is serialized as:
+
+```
+[ 18 ] [ length=32 ] [ digest-1 ]
+[ length=32 ] [ digest-2 ]
+[ 1 , codec=1, hashfn=1 ] [ length=0 ] [ ]
+[ 1 , codec=1, hashfn=1 ] [ length=1 ] [ 1 ]
+[ 1 , codec=1, hashfn=1 ] [ length=1 ] [ 2 ]
+[ 1 , codec=1, hashfn=1 ] [ length=245 ] [ digest-2 ]
+[ length=245 ] [ digest-3 ]
+[ length=250 ] [ digest-1 ]
+[ length=250 ] [ digest-2 ]
+[ length=250 ] [ digest-3 ]
+[ 1 , codec=2, hashfn=1 ] [ length=250 ] [ digest-1 ]
+[ length=250 ] [ digest-2 ]
+[ 1 , codec=2, hashfn=2 ] [ length=250 ] [ digest-1 ]
+[ length=250 ] [ digest-2 ]
+```
 
 ## map sorting algorithm
 
@@ -226,7 +285,7 @@ We use `read()` to refer to the next read after this varint is read
 
 # Optimizations
 
-All optimizatios are required in order to guarantee determinism.
+All optimizations are required in order to guarantee determinism.
 
 ## Inline Structure when no Links or Values
 
