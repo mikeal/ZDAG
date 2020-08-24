@@ -408,6 +408,7 @@ The following examples have values and no CIDs, which is why they begin with a n
 1                        // (+1 map key offset) - 1
 1                        // value index
 0                        // map end
+                         // omit trailing delimiter when list or map is root structure
 ```
 
 ```js
@@ -427,4 +428,5 @@ The following examples have values and no CIDs, which is why they begin with a n
 1                        // (+1 map key offset ) - 1
 0                        // value index
 0                        // map end
+                         // omit trailing delimiter when list or map is root structure
 ```
