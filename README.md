@@ -235,6 +235,23 @@ We use `read()` to refer to the next read after this varint is read
 * sort length first
 * then sort by byte comparison
 
+Sort:
+
+```
+[ 1, 2, 3, 4 ]
+[ 1, 5, 5, 5 ]
+[ 2, 0, 0, 0, 0, 0]
+```
+
+Serializes as:
+
+```
+[ 4 ] [ 1, 2, 3, 4 ]
+[ 0 ] [ 1, 5, 5, 5 ]
+[ 2 ] [ 2, 0, 0, 0, 0, 0]
+```
+
+
 ### cid sorting / compression rules
 
 The link section of the block is sorted with CID specific rules in order
@@ -301,7 +318,11 @@ future multiformats), you must prepend 101.
 
 ## Typed lists and maps (not implemented)
 
-Any map or list that has more than 1 value and only has entries that are of the same type,
-and that type is not integer, MUST use typed lists and maps.
+Any map or list that only has entries that are of the same type,
+and that type is not integer, MUST use typed lists and maps. Integer typed lists
+don't use this feature because it would be an extra byte.
+
+All empty maps and lists must be typed. This is so that any schema validation can be done
+without additional parsing when the list is typed to anyting but an integer.
 
 
