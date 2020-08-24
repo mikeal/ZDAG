@@ -286,19 +286,19 @@ Is serialized as:
 
 ```
 [ 18 ] [ length=32 ] [ digest-1 ]
-[ length=32 ] [ digest-2 ]
+       [ length=32 ] [ digest-2 ]
 [ 1 , codec=1, hashfn=1 ] [ length=0 ] [ ]
 [ 1 , codec=1, hashfn=1 ] [ length=1 ] [ 1 ]
 [ 1 , codec=1, hashfn=1 ] [ length=1 ] [ 2 ]
 [ 1 , codec=1, hashfn=1 ] [ length=245 ] [ digest-2 ]
-[ length=245 ] [ digest-3 ]
-[ length=250 ] [ digest-1 ]
-[ length=250 ] [ digest-2 ]
-[ length=250 ] [ digest-3 ]
+                          [ length=245 ] [ digest-3 ]
+                          [ length=250 ] [ digest-1 ]
+                          [ length=250 ] [ digest-2 ]
+                          [ length=250 ] [ digest-3 ]
 [ 1 , codec=2, hashfn=1 ] [ length=250 ] [ digest-1 ]
-[ length=250 ] [ digest-2 ]
+                          [ length=250 ] [ digest-2 ]
 [ 1 , codec=2, hashfn=2 ] [ length=250 ] [ digest-1 ]
-[ length=250 ] [ digest-2 ]
+                          [ length=250 ] [ digest-2 ]
 ```
 
 ## map sorting algorithm
