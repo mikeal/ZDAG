@@ -440,7 +440,7 @@ The following examples have values and no CIDs, which is why they begin with a n
 
 Typed list
 
-```
+```js
 [ 'x', 'y', 'z' ]
 
 /* serializes to */
