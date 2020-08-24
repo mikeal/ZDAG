@@ -332,25 +332,6 @@ without additional parsing when the list is typed to anyting but an integer.
 Note that all the following examples do not have any links or values and as such
 do not have proceeding null bytes.
 
-0 - 100 : inline varint
-100 : list delimiter
-101 : varint (limited allowable use)
-102 : utf8 string reference
-103 : bytes reference
-104 : null
-105 : true
-106 : false
-107 : float
-108 : map
-109 : list
-110 : cid reference
-111 : signed varint
-112 : signed float
-113 : zero point float (not implemented)
-114 : typed map (not implemented)
-115 : typed list (not implemented)
-116+ : inline varint
-
 ```js
 [ 1, 2 ]
 
@@ -399,7 +380,7 @@ The following examples have values and no CIDs, which is why they begin with a n
 /* serializes to */
 
 0                        // no links
-10                       // length of values header
+12                       // length of values header
 5                        // +5 length offset
 104, 101, 108, 108, 111  // "hello"
 0                        // +0 length offset
@@ -416,7 +397,7 @@ The following examples have values and no CIDs, which is why they begin with a n
 /* serializes to */
 
 0                        // no links
-10                       // length of values header
+12                       // length of values header
 5                        // +5 length offset
 104, 101, 108, 108, 111  // "hello"
 0                        // +0 length offset
@@ -429,4 +410,48 @@ The following examples have values and no CIDs, which is why they begin with a n
 0                        // value index
 0                        // map end
                          // omit trailing delimiter when list or map is root structure
+```
+0 - 100 : inline varint
+100 : list delimiter
+101 : varint (limited allowable use)
+102 : utf8 string reference
+103 : bytes reference
+104 : null
+105 : true
+106 : false
+107 : float
+108 : map
+109 : list
+110 : cid reference
+111 : signed varint
+112 : signed float
+113 : zero point float (not implemented)
+114 : string typed map (not implemented)
+115 : string typed list (not implemented)
+116 : byte value typed map
+117 : byte value type list
+119 : float typed map
+120 : float typed list
+121 : signed varint map
+122 : signed varint list
+123 : signed float map
+124 : signed float list
+118+ : inline varint
+
+Typed list
+
+```
+[ 'x', 'y', 'z' ]
+
+/* serializes to */
+
+0       // no links
+6       // value header length
+1, 120  // +1 offset length, "x"
+0, 121  // +0 offset length, "y"
+0, 122  // +0 offset length, "z"
+115     // string typed list
+0
+1
+2
 ```
