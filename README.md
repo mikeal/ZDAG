@@ -407,12 +407,11 @@ The following examples have values and no CIDs, which is why they begin with a n
 108                      // map
 1                        // (+1 map key offset) - 1
 1                        // value index
-0                        // map end
                          // omit trailing delimiter when list or map is root structure
 ```
 
 ```js
-{ "hello": "world", "world": "hello" }
+[ { "hello": "world", "world": "hello" } ]
 
 /* serializes to */
 
@@ -422,6 +421,7 @@ The following examples have values and no CIDs, which is why they begin with a n
 104, 101, 108, 108, 111  // "hello"
 0                        // +0 length offset
 119, 111, 114, 108, 100  // "world"
+109
 108                      // map
 1                        // (+1 map key offset ) + 1
 1                        // value index
