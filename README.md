@@ -325,4 +325,106 @@ don't use this feature because it would be an extra byte.
 All empty maps and lists must be typed. This is so that any schema validation can be done
 without additional parsing when the list is typed to anyting but an integer.
 
+# Examples
 
+## Structure Examples
+
+Note that all the following examples do not have any links or values and as such
+do not have proceeding null bytes.
+
+0 - 100 : inline varint
+100 : list delimiter
+101 : varint (limited allowable use)
+102 : utf8 string reference
+103 : bytes reference
+104 : null
+105 : true
+106 : false
+107 : float
+108 : map
+109 : list
+110 : cid reference
+111 : signed varint
+112 : signed float
+113 : zero point float (not implemented)
+114 : typed map (not implemented)
+115 : typed list (not implemented)
+116+ : inline varint
+
+```js
+[ 1, 2 ]
+
+/* serializes to */
+
+109 // list
+1   // 1
+2   // 2
+    // omit trailing delimiter when list or map is root structure
+```
+
+```js
+[ 1, [ 2, 3 ] ]
+
+/* serializes to */
+
+109  // list
+1    // 1
+109  // list
+2    // 2
+3    // 2
+100  // end list
+     // omit trailing delimiter when list or map is root structure
+```
+
+```js
+[ 1, [ null ], 3 ]
+
+/* serializes to */
+
+109  // list
+1    // 1
+109  // list
+104  // null
+100  // end list
+3    // 3
+     // omit trailing delimiter when list or map is root structure
+```
+
+
+The following examples have values and no CIDs, which is why they begin with a null byte.
+
+```js
+{ "hello": "world" }
+
+/* serializes to */
+
+0                        // no links
+10                       // length of values header
+5                        // +5 length offset
+104, 101, 108, 108, 111  // "hello"
+0                        // +0 length offset
+119, 111, 114, 108, 100  // "world"
+108                      // map
+1                        // (+1 map key offset) - 1
+1                        // value index
+0                        // map end
+```
+
+```js
+{ "hello": "world", "world": "hello" }
+
+/* serializes to */
+
+0                        // no links
+10                       // length of values header
+5                        // +5 length offset
+104, 101, 108, 108, 111  // "hello"
+0                        // +0 length offset
+119, 111, 114, 108, 100  // "world"
+108                      // map
+1                        // (+1 map key offset ) + 1
+1                        // value index
+1                        // (+1 map key offset ) - 1
+0                        // value index
+0                        // map end
+```
