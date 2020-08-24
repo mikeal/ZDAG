@@ -1,5 +1,5 @@
 {
-  "name": "@ipld/r2d2",
+  "name": "zdag",
   "version": "0.0.0",
   "description": "``` links | values | structure ```",
   "type": "module",

@@ -1,6 +1,4 @@
-# r2d2
-
-Really Reliable De-Deplucation
+# zdag
 
 This is an experimental block format for IPLD. It leverages the
 constraints of the IPLD data model to shave as many bytes off
@@ -436,6 +434,8 @@ The following examples have values and no CIDs, which is why they begin with a n
 122 : signed varint list
 123 : signed float map
 124 : signed float list
+125 : empty map
+126 : empty list
 118+ : inline varint
 
 Typed list

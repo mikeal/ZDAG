@@ -67,7 +67,7 @@ const run = async (compress) => {
     */
   }
   console.log(metrics)
-  console.log(`r2d2 is ${Number(metrics.r2d2 * 100n / metrics.data) / 100 } of dag-cbor`)
+  console.log(`r2d2 is ${Number(metrics.r2d2 * 10000n / metrics.data) / 10000 } of dag-cbor`)
 }
 run(false).then(() => {
   run(true)
