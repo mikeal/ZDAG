@@ -62,6 +62,20 @@ export default multiformats => {
     const values = []
     const addValue = v => {
       const entry = [ v, () => values.indexOf(entry) ]
+      if (values.length > 1) {
+        // compare against the last value, it's rather common
+        // that values are incrementing naturally over the course
+        // of a data structure
+        const last = values[values.length -1]
+        const comp = compare(last[0], v)
+        if (comp === 1) {
+          values.push(entry)
+          return entry[1]
+        }
+        if (comp === 0) {
+          return last[1]
+        }
+      }
       for (let i = 0; i < values.length; i++) {
         const value = values[i][0]
         const comp = compare(value, v)
