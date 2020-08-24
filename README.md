@@ -451,7 +451,8 @@ Typed list
 0, 121  // +0 offset length, "y"
 0, 122  // +0 offset length, "z"
 115     // string typed list
-0
-1
-2
+1       // value index + 1
+2       // value index + 1
+3       // value index + 1
+        // trailing zero is ommitted during structure inlining
 ```
