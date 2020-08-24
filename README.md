@@ -165,6 +165,9 @@ For negative floats:
 * write the mantissa length as a varint
 * write the integer for the full value (float divided by Math.pow(10, mantissaLength)) as a varint
 
+You cannot write 0 as a float. This is a determinism requirement and is also relied
+upon later in the ruleset.
+
 #### writing constants (null, true, false)
 
 * if null: write 104
@@ -428,15 +431,11 @@ The following examples have values and no CIDs, which is why they begin with a n
 115 : string typed list (not implemented)
 116 : byte value typed map
 117 : byte value type list
-119 : float typed map
-120 : float typed list
-121 : signed varint map
-122 : signed varint list
-123 : signed float map
-124 : signed float list
-125 : empty map
-126 : empty list
-118+ : inline varint
+118 : link typed map
+119 : link type list
+220 : empty map
+221 : empty list
+222+ : inline varint
 
 Typed list
 
@@ -456,3 +455,22 @@ Typed list
 3       // value index + 1
         // trailing zero is ommitted during structure inlining
 ```
+
+### **NEW!** (not implemented) better map indexing
+
+Since we now have a specific token for empty maps we can create a better
+ruleset for map keys that guarantees determinism, making it impossible
+to write an indeterminstic map that parses correctly.
+
+* All map indexes are the increase in the map index offset.
+* All subsequent indexes are increases in the offset, which means that duplicate entries
+trying to re-use zero will conflict with the delimiter.
+
+#### Parsing / Validation
+
+* First index can be zero.
+* All subsequent indexes must be 1 or higher.
+* Another zero terminates the map.
+
+We don't need to worry about the null byte terminator conflicting with an initial index
+of zero because we have a separate table entry you're required to use for empty maps.
