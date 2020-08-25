@@ -17,7 +17,7 @@
     "multiformats": "^3.0.3",
     "@ipld/dag-cbor": "^1.1.10",
     "@ipld/dag-json": "^3.0.17",
-    "estest": "^10.3.3",
+    "estest": "^10.3.4",
     "mocha": "^8.1.1",
     "datastore-car": "^1.2.0",
     "@ipld/block": "^6.0.3"
