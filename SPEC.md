@@ -6,7 +6,7 @@ ZDAG is a compressed block format for IPLD.
 [ links | values | structure ]
 ```
 
-All links in the block are packing into an initial header. This means
+All links in the block are packed into an initial header. This means
 the links can be parsed without further reading into the block data.
 
 All string values, byte values, and map keys, are stored only once in their
@@ -21,13 +21,13 @@ The IPLD Data Model is a superset of JSON types. It adds two types: bytes
 and links.
 
 Many non-JSON formats support inline binary and there are large efficiency
-gains to be had from using binary without string encoded as currently
+gains to be had from using binary without string encoding as currently
 required by JSON.
 
 Links are required in order to link between different blocks to create
 multi-block data structures. We use the CID format for links so that
 blocks can link to any other block using any other codec/format and
-hashin function.
+hashing function.
 
 To recap, the only available types this format needs to support are:
 * Null
@@ -37,7 +37,7 @@ To recap, the only available types this format needs to support are:
   * Floating point (positive and negative)
 * String (utf8)
 * List (arrays)
-* Map
+* Map (deterministic key ordering)
 * Bytes
 * Link (cids)
 
@@ -49,6 +49,11 @@ binary encoding without losing any fidelity.
 
 Unless you were to specifically craft data to overwhelm the compression
 table, a ZDAG encoding is almost guaranteed to be smaller than JSON or CBOR.
+
+Also note that, in order to guarantee determinism, the IPLD Data Model requires
+deterministic order of some sort for maps. This is not always enforced because
+prior formats (`dag-json` and `dag-cbor`) have to contend with a lack of determinism
+and end up having to work with data that may have been improperly encoded.
 
 # COMPRESSION
 
