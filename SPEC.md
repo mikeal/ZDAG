@@ -81,23 +81,23 @@ JSON contains this variability so that you can use it as a flexible string based
 format for data structures.
 
 CBOR also has flexibility in its encoding, presented as features the encoder can
-choose to use for efficiency. However, these feature end up being quite difficult
+choose to use for efficiency. However, these features end up being quite difficult
 to leverage since most language libraries for CBOR, and comparable formats, only
-provide a single method of encoding native data structures to CBOR, so developers
+provide a single method of encoding native data structures, so developers
 can't really leverage these features very effectively in their data structures ***and***
-these features features are totally off limits to those of us building content
+these features are totally off limits to those of us building content
 addressed data structures.
 
 ZDAG takes a different approach. Knowing that we need to ensure determinism means
 that we can only ever have one way to encode something. We can actually leverage
-this constraints to produce more compact representations and reduce the required
+this constraint to produce more compact representations and reduce the required
 tokens.
 
 But the best part is, since the rules we use for compression are based on rules
-ragarding the deterministic encoding of the given structure all the compression techniques
-in the format can be leveraged by developers.
+ragarding the deterministic encoding of a given structure, all the compression techniques
+in the format can be leveraged by developers without touching the encoder directly.
 
-Instead of having features in the encode, like CBOR, our features are determined
+Instead of having features in the encoder, like CBOR, our features are determined
 by the shape of the given data, which means you can design shapes that excercise
 the compression rules.
 
@@ -105,8 +105,8 @@ This means we can create new data structures using widely available simple types
 that are also designed to be maximally compressed into the block format. At first,
 it will difficult for a developer to understand how these rules apply and intersect
 with each other, but given the right tools to expose where potential savings might
-be many developers will be able to find way to save space by make small design
-changes to data structures.
+be many developers will be able to find ways to save space by making small design
+changes to their data structures.
 
 ## VARINT
 
@@ -119,14 +119,20 @@ techniques.
 * Smaller numbers use less space.
 * Numbers 127 and lower are 1b.
 
-We always use numbers 127 or below for termination and tokens. This allows the parsing
-rules to never use more than a single byte and it allows us to inline VARINT as values
-whenever necessary, greatly reduce the potential number space.
+We use low numbers (0, 1) for termination of sequences that are leveraging DELTA
+compression so that we can keep the offset small and maximize the effect of DELTA
+compression. The one case where we do not use a 0 or 1 for termination is in a normal (untyped)
+list because we cannot use DELTA compression (lists are not deterministically sorted)
+and we prefer to reserve 0 and 1 for inline VARINT's because they are quire common, so
+we assign a token for list termination instead.
 
-We use 0 for termination in almost every case so that we can use a DELTA offset. Other
-than that, we tend to keep our tokens in the top of the 1b range so that we can inline
-VARINT values below the token range since smaller integer values occur more often
-in user data.
+We use 255 and below for tokens. This allows the parsing
+rules to never use more than a single byte and it allows us to inline VARINTs
+127 and below. VARINTs that begin with a byte in a reserved token range must be prefixed with 255
+in order to protect the token range, which means that we only take a penalty byte when
+the numbers are very large. This penalty only applies when we are parsing a token, there
+are many cases where we parse a VARINT and a token is not possible and so we do not take
+this penalty for large numbers in those cases.
 
 ## VARINT_TABLE
 
@@ -136,7 +142,7 @@ for values. We build two tables for a few reasons:
 * Since CID's have known VARINT based parsing rules, we can compact them into a linear
 header without many delimiters, and we can even compress out common prefixes, which we
 wouldn't be able to do if they were in the value table.
-* Since we're already going to have seperate header, we can maximize the address space
+* Since we're already going to have a seperate header, we can maximize the address space
 in each compression table by keeping them separate.
 
 We will then use VARINT's to point to these tables as we parse the STRUCTURE.
@@ -146,35 +152,43 @@ addresses in 1b.
 
 But, since we know the full table size before we ever parse the STRUCTURE
 we can open up this range to 255 references when the table is below a
-particular range. The range of this rule varies by 1 depending on the type
+particular range. The range of this rule varies by 1 depending on the STRUCTURE_TYPE
 since we may need to use 0 for termination. This means that, in all cases,
-we get 255 addresses when the table is below 255, and in some cases only
-254 if the table is below 254 in size.
+we get 254 addresses when the table is below 254, and in some cases we get the
+whole 255 range when the table is 255 or below.
 
 This technique effectively doubles the 1 byte address space for
 our compresion table if you can keep the number of unique entries in
 the table small. Data structures can be designed and re-shaped to fit
 well into these tables and since they are both deterministically sorted
-the size of the table can be easily calculated without fully serializing
-by just searching through the data structure for values and links and
-apply the sort and de-duplication rules.
+the size of the table can be easily calculated without fully serializing.
+By just searching through the data structure for values and links and
+appling the sort and de-duplication rules.
 
 This table idea began as just an efficient way to shave bytes off of
 the structure encoding, but what I came to realize after writing it is
 that it's much more than that.
 
-These table rules will become variables in application specific algorithms.
-You can effectively program a datastructure algorithm for compression
-using nothing but the IPLD_DATA_MODEL.
+These table rules will become variables in application specific
+compression algorithms.
+
+You can effectively program a for compression using nothing but the
+IPLD_DATA_MODEL and you don't need a new format or new compression
+scheme in the code, you just fit the data to match the deterministic
+compression rules.
 
 For instance:
 
-* You can freely use links and values 
+* You can freely use links and values repeatedly without bearing the
+  cost of the value, only a reference to the value or link. This cost
+  is reduced even further in some data structures use DELTA compression
+  and CONTAINER_TYPING rules.
 * You can slice up values in order to put common byte/string ranges
   into the compression table.
 * You can adjust these chunking and slicing algorithms to reduce smaller
   values that might be crowding out lower address space in the table
-  when they aren't used as often in the data structure.
+  when they aren't used as often in the data structure by chunking
+  them together with adjoining values.
 
 This may be novel, or maybe not, i haven't seen these things plugged
 together in this exact way before, but VARINT has been around a long
@@ -395,33 +409,34 @@ Since smaller numbers occur more often in user data we put
 all structure tokens at the top end of the VARINT 1b range.
 
 ```js
-const STRUCTURE_LIST_CLOSE              = 127
-
 // only used for varints that conflict with reserved tokens
-const STRUCTURE_VARINT                  = 126
+const STRUCTURE_VARINT                  = 255
 
-const STRUCTURE_STRING_INDEX            = 125
-const STRUCTURE_BYTE_INDEX              = 124
-const STRUCTURE_NUll                    = 123
-const STRUCTURE_BOOLEAN_TRUE            = 122
-const STRUCTURE_BOOLEAN_FALSE           = 121
-const STRUCTURE_FLOAT                   = 120
-const STRUCTURE_MAP_START               = 119
-const STRUCTURE_LIST_START              = 118
-const STRUCTURE_LINK_INDEX              = 117
-const STRUCTURE_SIGNED_VARINT           = 116
-const STRUCTURE_SIGNED_FLOAT            = 115
-const STRUCTURE_ZERO_POINT_FLOAT        = 114
-const STRUCTURE_STRING_TYPED_MAP        = 113
-const STRUCTURE_BYTE_TYPED_MAP          = 112
-const STRUCTURE_LINK_TYPED_MAP          = 111
-const STRUCTURE_STRING_TYPED_LIST       = 110
-const STRUCTURE_BYTE_TYPED_LIST         = 109
-const STRUCTURE_LINK_TYPED_LIST         = 108
-const STRUCTURE_EMPTY_MAP               = 107
-const STRUCTURE_EMPTY_LIST              = 106
+const STRUCTURE_LIST_CLOSE              = 254
 
-const STRUCTURE_MAX_INLINE_VARINT       = 105
+
+const STRUCTURE_STRING_INDEX            = 253
+const STRUCTURE_BYTE_INDEX              = 252
+const STRUCTURE_NUll                    = 251
+const STRUCTURE_BOOLEAN_TRUE            = 250
+const STRUCTURE_BOOLEAN_FALSE           = 249
+const STRUCTURE_FLOAT                   = 248
+const STRUCTURE_MAP_START               = 247
+const STRUCTURE_LIST_START              = 246
+const STRUCTURE_LINK_INDEX              = 245
+const STRUCTURE_SIGNED_VARINT           = 244
+const STRUCTURE_SIGNED_FLOAT            = 243
+const STRUCTURE_ZERO_POINT_FLOAT        = 242
+const STRUCTURE_STRING_TYPED_MAP        = 241
+const STRUCTURE_BYTE_TYPED_MAP          = 240
+const STRUCTURE_LINK_TYPED_MAP          = 239
+const STRUCTURE_STRING_TYPED_LIST       = 238
+const STRUCTURE_BYTE_TYPED_LIST         = 237
+const STRUCTURE_LINK_TYPED_LIST         = 236
+const STRUCTURE_EMPTY_MAP               = 235
+const STRUCTURE_EMPTY_LIST              = 234
+
+const STRUCTURE_MAX_INLINE_VARINT_FIRST BYTE = 233
 ``
 
 Special tokens for first byte parsing to support
