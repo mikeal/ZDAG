@@ -446,7 +446,7 @@ Since the VALUES_HEADER is already determinstically sorted with low numbers for 
 due to the DELTA compression, there is probably a string compression algorithm
 that is specific to this header that is yet-to-be-discovered.
 
-# STRUCTURE_COMPRESSION
+## STRUCTURE_COMPRESSION
 
 The STRUCTURE section is a linear sequence of tokens and inline VARINT values. These
 tokens are used to materialize the IPLD_DATA_MODEL types.
@@ -467,7 +467,7 @@ about them in order to understand how these compression techniques work.
 * ints are mostly inlined, only the largest ints take a penalty byte for typing
 * empty maps and lists have a reserved token, saving a terminator byte
 
-## STRUCTURE_MAP_KEY_DELTAS
+### STRUCTURE_MAP_KEY_DELTAS
 
 Here we leverage the requirement that map keys are all strings in the IPLD data model.
 Since we don't have type variance we don't need a typing token. This already effecively
@@ -483,7 +483,7 @@ Not only does this compress the size of the key references, it makes it **IMPOSS
 to encode an indeterministic map, since you're only able to increase the index of
 a sorted table and if you try to write the same entry twice you'll terminate the map.
 
-## STRUCTURE_CONTAINER_TYPING
+### STRUCTURE_CONTAINER_TYPING
 
 First of all, since empty maps and lists have their own token we don't need to worry
 about differentiating typed and untyped containers. In fact, it's best to not think
