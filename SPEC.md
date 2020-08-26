@@ -1,36 +1,175 @@
 # ZDAG
 
+ZDAG is a compressed block format for IPLD.
+
 ```
 [ links | values | structure ]
 ```
 
+All links in the block are packing into an initial header. This means
+the links can be parsed without further reading into the block data.
+
+All string values, byte values, and map keys, are stored only once in their
+binary form in a values header. This means de-duplication of common values
+across the structure.
+
+The structure of the data is finally written to the last section of the block.
+
+# IPLD_DATA_MODEL
+
+The IPLD Data Model is a superset of JSON types. It adds two types: bytes
+and links.
+
+Many non-JSON formats support inline binary and there are large efficiency
+gains to be had from using binary without string encoded as currently
+required by JSON.
+
+Links are required in order to link between different blocks to create
+multi-block data structures. We use the CID format for links so that
+blocks can link to any other block using any other codec/format and
+hashin function.
+
+To recap, the only available types this format needs to support are:
+* Null
+* Boolean (true and false)
+* Integer
+  * Signed and Unsigned (positive and negative)
+  * Floating point (positive and negative)
+* String (utf8)
+* List (arrays)
+* Map
+* Bytes
+* Link (cids)
+
+ZDAG supports the IPLD Data Model and nothing else. This means that it can
+encode anything you'd encode with JSON (or CBOR) and then some.
+
+Even when only encoding JSON types, ZDAG will produce a more compact
+binary encoding without losing any fidelity.
+
+Unless you were to specifically craft data to overwhelm the compression
+table, a ZDAG encoding is almost guaranteed to be smaller than JSON or CBOR.
+
 # COMPRESSION
+
+## DETERMINISM
+
+A requirement we already have in IPLD, and in fact in nearly all
+content addressed data structures, is determinism.
+
+In `dag-cbor` and `dag-json` this has been difficult to guarantee and
+enforce because these formats are indeterministic. For example, the following
+JSON documents are both valid JSON that decode to the same in-memory
+representation of the data structure
+
+```json
+{"hello":"world"}
+{ "hello" : "world" }
+```
+
+If you parse both of these JSON objects with a JSON parser you'll end up with the
+same in-memory data, but if you then re-encode those objects to JSON at least one
+of them is going to produce a different string than you originally parsed. This
+round-trip problem can cause lots of problems when you're hashing the encoded data.
+
+JSON contains this variability so that you can use it as a flexible string based
+format for data structures.
+
+CBOR also has flexibility in its encoding, presented as features the encoder can
+choose to use for efficiency. However, these feature end up being quite difficult
+to leverage since most language libraries for CBOR, and comparable formats, only
+provide a single method of encoding native data structures to CBOR, so developers
+can't really leverage these features very effectively in their data structures ***and***
+these features features are totally off limits to those of us building content
+addressed data structures.
+
+ZDAG takes a different approach. Knowing that we need to ensure determinism means
+that we can only ever have one way to encode something. We can actually leverage
+this constraints to produce more compact representations and reduce the required
+tokens.
+
+But the best part is, since the rules we use for compression are based on rules
+ragarding the deterministic encoding of the given structure all the compression techniques
+in the format can be leveraged by developers.
+
+Instead of having features in the encode, like CBOR, our features are determined
+by the shape of the given data, which means you can design shapes that excercise
+the compression rules.
+
+This means we can create new data structures using widely available simple types
+that are also designed to be maximally compressed into the block format. At first,
+it will difficult for a developer to understand how these rules apply and intersect
+with each other, but given the right tools to expose where potential savings might
+be many developers will be able to find way to save space by make small design
+changes to data structures.
 
 ## VARINT
 
-Variable size compressed integer.
+A VARINT is a variable sized integer. The entire 64b number space is available but
+smaller numbers are compressed in to a much smaller binary space than larger numbers.
+
+A few things to keep in mind about VARINTs as you read through the following compression
+techniques.
+
+* Smaller numbers use less space.
+* Numbers 127 and lower are 1b.
+
+We always use numbers 127 or below for termination and tokens. This allows the parsing
+rules to never use more than a single byte and it allows us to inline VARINT as values
+whenever necessary, greatly reduce the potential number space.
+
+We use 0 for termination in almost every case so that we can use a DELTA offset. Other
+than that, we tend to keep our tokens in the top of the 1b range so that we can inline
+VARINT values below the token range since smaller integer values occur more often
+in user data.
 
 ## VARINT_TABLE
 
-I use VARINTs throughout this format when referring to entries in a
-compression table.
+We build two compression tables in this format. One specifically for links and another
+for values. We build two tables for a few reasons:
 
-When we use a VARINT to refer to a table entry we only get 126
+* Since CID's have known VARINT based parsing rules, we can compact them into a linear
+header without many delimiters, and we can even compress out common prefixes, which we
+wouldn't be able to do if they were in the value table.
+* Since we're already going to have seperate header, we can maximize the address space
+in each compression table by keeping them separate.
+
+We will then use VARINT's to point to these tables as we parse the STRUCTURE.
+
+When using a VARINT to refer to a table entry we only get 126
 addresses in 1b.
 
-But, since we know the table size we can open up this range to
-255 references when the table is below a particular range. That range
-will vary slightly depending on the bytes that might need to be
-reserved in the particular compression rule.
+But, since we know the full table size before we ever parse the STRUCTURE
+we can open up this range to 255 references when the table is below a
+particular range. The range of this rule varies by 1 depending on the type
+since we may need to use 0 for termination. This means that, in all cases,
+we get 255 addresses when the table is below 255, and in some cases only
+254 if the table is below 254 in size.
 
 This technique effectively doubles the 1 byte address space for
 our compresion table if you can keep the number of unique entries in
-the table small.
+the table small. Data structures can be designed and re-shaped to fit
+well into these tables and since they are both deterministically sorted
+the size of the table can be easily calculated without fully serializing
+by just searching through the data structure for values and links and
+apply the sort and de-duplication rules.
 
-This can be leveraged by application specific algorithms using IPLD.
-Once you understand the compression rules for the values that go
-into these tables you can design the structure to reduce the table entries
-if they can take advantage of the extra address space.
+This table idea began as just an efficient way to shave bytes off of
+the structure encoding, but what I came to realize after writing it is
+that it's much more than that.
+
+These table rules will become variables in application specific algorithms.
+You can effectively program a datastructure algorithm for compression
+using nothing but the IPLD_DATA_MODEL.
+
+For instance:
+
+* You can freely use links and values 
+* You can slice up values in order to put common byte/string ranges
+  into the compression table.
+* You can adjust these chunking and slicing algorithms to reduce smaller
+  values that might be crowding out lower address space in the table
+  when they aren't used as often in the data structure.
 
 This may be novel, or maybe not, i haven't seen these things plugged
 together in this exact way before, but VARINT has been around a long
@@ -134,6 +273,12 @@ for each CIDv0 in the block. So there isn't a better byte to reserve.
 
 Why the DELTA from 2?
 
+We have need a token for ending the entire header 0.
+
+We need another token that says we are now going to write CIDv1, so we reserve
+1. That means that 0 and 1 can't be used as length tokens, so we write the
+DELTA + 1.
+
 Since we have identity multihashes the hash length can be literally
 any number, even 0.
 
@@ -215,11 +360,132 @@ and you have a reliable token already in place
 
 # CONSTANTS
 
+CID Header compression constants
+
 ```js
-const STRUCTURE_TOKEN_TYPED_BYTE_LIST   = 117
-const STRUCTURE_TOKEN_TYPED_LINKS_LIST  = 119
-const STRUCTURE_TOKEN_EMPTY_LIST        = 122
+const CID_HEADER_TERMINATOR             = 0
+const CID_HEADER_CIDV0_START            = 18
+const CID_HEADER_CIDV1_START            = 1
+const CID_DIGEST_LENGTH_DELTA_OFFSET    = 2
 ```
+
+Value Header compression constant
+
+```js
+const VALUE_LENGTH_DELTA_OFFSET         = 0
+```
+
+Structure compression tokens
+
+```js
+const MAP_KEY_DELTA_OFFSET              = 1
+const MAP_KEY_VALUE_TABLE_1B_MAX        = 254
+const TYPED_LIST_DELTA_OFFSET           = 1
+const TYPED_LIST_TABLE_1B_MAX           = 254
+```
+
+Structure tokens.
+
+Since smaller numbers occur more often in user data we put
+all structure tokens at the top end of the VARINT 1b range.
+
+```js
+const STRUCTURE_LIST_CLOSE              = 127
+
+// only used for varints that conflict with reserved tokens
+const STRUCTURE_VARINT                  = 126
+
+const STRUCTURE_STRING_INDEX            = 125
+const STRUCTURE_BYTE_INDEX              = 124
+const STRUCTURE_NUll                    = 123
+const STRUCTURE_BOOLEAN_TRUE            = 122
+const STRUCTURE_BOOLEAN_FALSE           = 121
+const STRUCTURE_FLOAT                   = 120
+const STRUCTURE_MAP_START               = 119
+const STRUCTURE_LIST_START              = 118
+const STRUCTURE_LINK_INDEX              = 117
+const STRUCTURE_SIGNED_VARINT           = 116
+const STRUCTURE_SIGNED_FLOAT            = 115
+const STRUCTURE_ZERO_POINT_FLOAT        = 114
+const STRUCTURE_STRING_TYPED_MAP        = 113
+const STRUCTURE_BYTE_TYPED_MAP          = 112
+const STRUCTURE_LINK_TYPED_MAP          = 111
+const STRUCTURE_STRING_TYPED_LIST       = 110
+const STRUCTURE_BYTE_TYPED_LIST         = 109
+const STRUCTURE_LINK_TYPED_LIST         = 108
+const STRUCTURE_EMPTY_MAP               = 107
+const STRUCTURE_EMPTY_LIST              = 106
+
+const STRUCTURE_MAX_INLINE_VARINT       = 105
+``
+
+Special tokens for first byte parsing to support
+inline structures when no links or cids are present.
+In order to inline these numbers you must prefix them
+with 126.
+
+```
+const STRUCTURE_FIRST_BYTE_RESERVED_INTS = [ 0, 1, 18 ]
+```
+
+# ENCODE
+
+```
+const OUTPUT = []
+
+const WRITE = int => {
+  output.push(int)
+}
+
+const WRITE_VARINT = int => {
+  output.push(varint.encode(int)
+}
+
+const WRITE_REF = (arr) => {
+  OUTPUT.push(arr)
+}
+
+const ADD_VALUE = VALUE => {
+  const ref = []
+  VALUES.push([ VALUE, ref ])
+  WRITE_REF(ref)
+}
+
+const COMPARE_REF = (XX, YY) {
+  const [ value ] = XX
+  const [ comp ] = YY
+  if (value.length < comp.length) return -1
+  if (length > value.length) return 1
+  let i = 0
+  for (const int of value) {
+    if (int < comp[i]) return -1
+    if (comp[i] > int) return 1
+    i++
+  }
+  return 0
+}
+
+const SET_REFERENCES = () => {
+  // iterate over values
+  // remove duplicates
+  // push index into the second array of each entry
+}
+
+const SORT_VALUES = () => {
+  VALUES.sort(COMPAR_REF)
+  SET_REFERENCES()
+}
+
+const SERIALIZE = () => {
+  return VALUES.flat(Infinity)
+}
+```
+
+### ADD_VALUE
+
+
+
+
 
 # DECODE
 
@@ -313,7 +579,7 @@ while (DATA_REMAINING() > end) {
 
   if (size === 0 && prev) {
     // Allowing duplicate 0 byte entries would violate determinism
-    throw new Error('HEAD_VALUES: cannot encode two zero byte values in header')
+    ERROR('HEAD_VALUES: cannot encode two zero byte values in header')
   }
 
   const value = READ(SIZE)
