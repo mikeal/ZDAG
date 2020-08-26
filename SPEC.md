@@ -226,7 +226,7 @@ These are the cases where we use DETLA compression:
   Map key references are written as the DELTA +1. This not only reduces the size of the references,
   it makes it impossible to write indeterministic maps.
 
-## LINK_COMPRESSION
+## LINKS_HEADER_COMPRESSION
 
 The goal here is to find the most efficient possible way to store CIDs.
 
@@ -391,6 +391,60 @@ could theoretically have additional string compression techniques applied to it
 and you have a reliable token already in place. Compressing the hashes is useless
 but we already have a token that differentiates identity multihashes from the rest
 so you could apply additional string compression quite selectively.
+
+## VALUES_HEADER_COMPRESSION
+
+Every map key, string and byte value in the structure is deterministically
+sorted and put in the value header.
+
+The sorting rules are simple: first sort by length, then by byte comparison.
+
+Sorting by length first allows us to compress the table header using DELTA
+compression. A length header is:
+
+* A VARINT for the size of the complete value header.
+* A series of length DELTAs for each value followed by the value.
+
+Normally it would be costly to create a compression table for every value
+knowing almost nothing about that data. But since any format that stores
+string and byte values will need at least a length, if not a type hint
+and a terminator, we're able to reduce the penalty of the header by using
+DELTA compression on the lengths.
+
+Later on, you'll see how we can often drop another byte for the typeing
+by using typed collections. Similarly we save a typing byte on map keys
+by only allowing one map key type (existing IPLD_DATA_MODEL constraint).
+When you add it all up, we can almost always build this table for free
+compared to other formats that would inline these values rather than
+creating the compression table.
+
+So developers can safely assume that ZDAG will give them a compression
+gain even when working with arbitrary JSON data. In practice, a lot of
+this data contains duplicate map keys and other common patterns where
+we show bigger gains. Unless you craft data with the specific intention
+of overwhelming the compression table and opting out of other compression
+patterns in the format, ZDAG can be a drop-in replacement for JSON, CBOR,
+and other formats that don't require external schemas.
+
+***Side Quest***
+
+There is an opportunity here for further compression when this is string data.
+
+I ran an experiment with an early version of ZDAG against 8 hours of filecoin
+chain data. The format shaved 8% off of the data. I then ran an experiment
+compressing the VALUES_HEADER with DEFLATE and this showed only a 3% gain since
+almost none of the value data in the chain is well suited for compression. This
+indicates that, if further compression is to be applied to the VALUES_HEADER
+it should be done as a variant codec and **only** the VALUES_HEADER should be
+compressed.
+
+As a final experiment I used DEFLATE on the STRUCTURE section as well and saw
+less than 1% compression gain. This is good, it indicates that the format itself is
+already very compressed.
+
+Since the VALUES_HEADER is already determinstically sorted with low numbers for separators
+due to the DELTA compression, there is probably a string compression algorithm
+that is specific to this header that is yet-to-be-discovered.
 
 # CONSTANTS
 
