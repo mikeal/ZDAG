@@ -255,7 +255,7 @@ ever create for CID data structures. Pretty fun stuff!
 
 First, we need to give CID's a deterministic sorting order.
 
-### Sorting
+### CID_SORTING
 
 ```
 [ v0 , length 10, digest ]
@@ -283,7 +283,7 @@ In fact, since this block format is deterministic you could simply
 parse out the compressed links header, hash it, and use that hash to find
 any other blocks that link to the same set of blocks as this block.
 
-### CIDv0 Compression
+### CIDV0-COMPRESSION
 
 To start, we need a token to signal if there are CIDv0's
 
@@ -339,7 +339,7 @@ RAW                COMPRESSED
 [ 18 , 1 , 2 ]     [ 2, 2 ]      // CIDv0 truncated single byte hash
 ```
 
-### CIDv1
+### CIDV1-COMPRESSION
 
 CIDv0 entries are prefixed by 1, then their codec and hashing function VARINTs, then a
 **series** of digests using the same DELTA compression rules for the length
@@ -446,6 +446,98 @@ Since the VALUES_HEADER is already determinstically sorted with low numbers for 
 due to the DELTA compression, there is probably a string compression algorithm
 that is specific to this header that is yet-to-be-discovered.
 
+# STRUCTURE_COMPRESSION
+
+The STRUCTURE section is a linear sequence of tokens and inline VARINT values. These
+tokens are used to materialize the IPLD_DATA_MODEL types.
+
+At this point it's important to note some constraints of the IPLD_DATA_MODEL again
+since we're going to be leveraging them for additional compression.
+
+* Fully Deterministic
+  * There can only be one way, ever, to encode the given data.
+  * String map keys only
+  * No duplicate map keys
+
+The full tokenization rules are detailed below, but it's useful to know a little bit
+about them in order to understand how these compression techniques work.
+
+* null, true and false are constants with their own reserved token.
+* signed ints and floats are prefixed with a type token
+* ints are mostly inlined, only the largest ints take a penalty byte for typing
+* empty maps and lists have a reserved token, saving a terminator byte
+
+## STRUCTURE_MAP_KEY_DELTAS
+
+Here we leverage the requirement that map keys are all strings in the IPLD data model.
+Since we don't have type variance we don't need a typing token. This already effecively
+eliminates the performance difference of different key types in other formats.
+
+Since maps MUST be deterministically sorted and we already have a deterministically
+sorted value index we can write all map keys using DELTA compression.
+
+We reserve 0 for termination of the sequence. We the encode the DELTA +1 for every
+map key.
+
+Not only does this compress the size of the key references, it makes it **IMPOSSIBLE**
+to encode an indeterministic map, since you're only able to increase the index of
+a sorted table and if you try to write the same entry twice you'll terminate the map.
+
+## STRUCTURE_CONTAINER_TYPING
+
+First of all, since empty maps and lists have their own token we don't need to worry
+about differentiating typed and untyped containers. In fact, it's best to not think
+of the typing in ZDAG as anything but a compression optimization as it is likely to
+conflict with typing rules you may be used to in your programming language.
+
+It's fairly commong to have containers (maps and lists) that only contain entires
+of a single type. Since these containers must prefix every value with a token
+for their type there's a compression gain to be had if we add tokens for maps and
+lists that only contain a single type. This means that every value type we optimize
+for will need to reserve two tokens, one for list and one for map.
+
+This rule only applies to the following value types:
+
+* strings
+* bytes
+* links
+
+This means we're taking 6 more bytes from the high inline VARINT range in order to compress
+these containers, which is totally worth it since single typed containers for these value
+types are far more common than very high numbers in user data.
+
+There's no bytes to be gained by typing the container for constants since they are already
+only a single byte. Same for ints, since they are mostly inlined. You could theoretically add signed ints,
+floats, signed floats, and zero point floats to this list but you'd end up
+increasing the necessary tokens for each case. Each token you reserve reduces the
+available range of inline VARINTs, so there's a question here about how common
+these are compared to integers in the high ranges.
+
+The compression rule is simple:
+
+* Any non-empty list that only contains entries of the same type MUST be encoded as a typed
+  list.
+  * You must encode this way, and validate this rule on parsing, in order to ensure
+    determinism.
+* Any non-empty map that only contains values of the same type MUST be encoded as a typed
+  map.
+  * Again, determinism.
+  * Note that the key type isn't a factor since we only allow one key type already.
+
+Since all the types we support here contain references to a compression table we can use
+zero for termination of both lists and maps. (In other words, we don't use the same terminator
+as regular lists use).
+
+TYPED_LIST indexes are offset by +1 in order to avoid conficting with the terminator.
+
+TYPED_MAP values aren't offset since maps are already terminated when looking for the next KEY.
+Standard DELTA compression rules are applied to TYPED_MAPS as standard MAPs.
+
+This means that a list of only bytes or strings costs only 1 byte to open, 1 to close
+( unless the structure is a the root, then it's omitted) and a VARINT for
+every index in the compression table it references, effectively shortening the list encoding
+by a byte for every entry greater than zero. The same efficiency gain is made with typed maps.
+
 # CONSTANTS
 
 CID Header compression constants
@@ -511,11 +603,25 @@ const STRUCTURE_MAX_INLINE_VARINT_FIRST BYTE = 233
 Special tokens for first byte parsing to support
 inline structures when no links or cids are present.
 In order to inline these numbers you must prefix them
-with 126.
+with 255.
 
 ```
 const STRUCTURE_FIRST_BYTE_RESERVED_INTS = [ 0, 1, 18 ]
 ```
+
+***Side Quest***
+
+Where we situate the tokens is a bit of an open question. They
+either need to be at the high end of the 1b VARINT range or
+the high end of the *entire* VARINT range.
+
+Remember, we take a penalty byte whenever we encode an inline VARINT
+that conflicts with the token range. Right now, we're conflicting
+with many many many more numbers than we would be if we used
+127 and below, but we're operating under the assumption that numbers
+in the low hundreds will occur more often than very high numbers
+in the entire range we've cut off. That may not be true, and
+this is something we should be able to test for at some point.
 
 # ENCODE
 
