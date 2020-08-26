@@ -155,7 +155,7 @@ we can open up this range to 255 references when the table is below a
 particular range. The range of this rule varies by 1 depending on the STRUCTURE_TYPE
 since we may need to use 0 for termination. This means that, in all cases,
 we get 254 addresses when the table is below 254, and in some cases we get the
-whole 255 range when the table is 255 or below.
+whole 255 range when the table is below 255.
 
 This technique effectively doubles the 1 byte address space for
 our compresion table if you can keep the number of unique entries in
@@ -172,9 +172,9 @@ that it's much more than that.
 These table rules will become variables in application specific
 compression algorithms.
 
-You can effectively program a for compression using nothing but the
+You can effectively program for compression using nothing but the
 IPLD_DATA_MODEL and you don't need a new format or new compression
-scheme in the code, you just fit the data to match the deterministic
+scheme in the codec/format, you just fit the data to match the deterministic
 compression rules.
 
 For instance:
@@ -185,8 +185,9 @@ For instance:
   and CONTAINER_TYPING rules.
 * You can slice up values in order to put common byte/string ranges
   into the compression table.
-* You can adjust these chunking and slicing algorithms to reduce smaller
-  values that might be crowding out lower address space in the table
+* You can adjust the chunking/slicing of values using algorithms that
+  reduce the occurence of smaller values that might be crowding out
+  lower address space in the table
   when they aren't used as often in the data structure by chunking
   them together with adjoining values.
 
@@ -200,12 +201,30 @@ tables :P
 Delta compression is used heavily across this format.
 
 In the context of this specification, whenever refering to indexes or
-lengths in deterministicly iterable structures I write the DELTA
+lengths in deterministicly iterable structures write write the DELTA
 between the prior index/length and the next as a VARINT.
 
 This allows for a 64b number space for any index/length which we then compress
 even further by reducing the size of the number we encode. This
 means we will almost always keep the length to a single byte.
+
+In many cases we need to reserve 0 and 1 for termination of a sequence.
+This means that we can't have 0 or 1 be a valid DELTA. So we store the
+DELTA +1 or +2 in these specific cases, which reduce the available
+compression addresses by the lowest possible amount.
+
+These are the cases where we use DETLA compression:
+
+* HEADER_LINKS: We need 0 for termination of the header and 1 for termination of
+  a prefix compression sequence. So when we write the hash digests we use the DELTA +2.
+* HEADER_VALUES: The values header begins with the full length of the header as a VARINT.
+  This could potentially be reduced in size by using DELTA compression but we'd lose
+  the ability to skip over the values header to the STRUCTURE when parsing so it's probably
+  not worth it. So value lengths are the DELTA (no increment).
+* STUCTURE_MAP_KEY_SORTING: since map keys are only a single type reference to the value table
+  and the same key can never occur twice, we can safely reserver 0 for termination of the sequence.
+  Map key references are written as the DELTA +1. This not only reduces the size of the references,
+  it makes it impossible to write indeterministic maps.
 
 ## LINK_COMPRESSION
 
@@ -234,7 +253,7 @@ used for necessary fidelity.
 So, what we're talking about in this document is the best algorithm we can
 ever create for CID data structures. Pretty fun stuff!
 
-We CID's have a required deterministic sorting order.
+First, we need to give CID's a deterministic sorting order.
 
 ### Sorting
 
@@ -249,11 +268,11 @@ We CID's have a required deterministic sorting order.
 [ v1, codec-b, hashfn-2 ] [ length-2] [ digest-b ]
 ```
 
-CIDvs are sorted CIDv0 first and then CIDv2.
+CIDs are sorted CIDv0 first and then CIDv2.
 
-CIDv0 is sorting length first, then digest byte comparison.
+CIDv0's are sorted length first, then by digest byte comparison.
 
-CIDv0 is sorted by three consequtive VARINTs: one for the CID version,
+CIDv1 is sorted by three consecutive VARINTs: one for the CID version,
 one for the codec, and one for the hash function. The CID's are then
 sorted by digest length, and finally by digest comparison.
 
@@ -261,10 +280,8 @@ The sorting algorithm isn't just for use in the compression, it also
 guarantees determinism in the block format.
 
 In fact, since this block format is deterministic you could simply
-parse out the compressed links header, hash it, and use to determine
+parse out the compressed links header, hash it, and use that hash to find
 any other blocks that link to the same set of blocks as this block.
-
-Holy shit, I just thought of that. This is thing is fucking amazing.
 
 ### CIDv0 Compression
 
@@ -283,49 +300,36 @@ need a byte full in order to reserve the 0 byte for termination of the
 structure later, so you can't even shave bits below a full byte.
 
 This means that we effectively don't have to reserve a byte for this
-signal at all. We share this byte with the header terminator.
+signal at all. We share this signal byte with the header terminator.
 
 18 is the actual first byte of a CIDv0. An encoder likely has 18 as a
-a constant in the close scope. A decompressor will need an 18 shortly
-in order to start creating new memory allocations starting with 18
-for each CIDv0 in the block. So there isn't a better byte to reserve.
+a constant in the close scope already. A decompressor will need an 18 shortly
+in order to materialize the following the digests into complete CIDs.
+So there isn't a better byte to reserve.
 
 Why the DELTA from 2?
 
-We have need a token for ending the entire header 0.
+We need a token for ending the entire header: 0.
 
 We need another token that says we are now going to write CIDv1, so we reserve
-1. That means that 0 and 1 can't be used as length tokens, so we write the
+1. That means that 0 and 1 can't be used as lengths, so we write the
 DELTA + 1.
 
-Since we have identity multihashes the hash length can be literally
-any number, even 0.
-
-But a CIDv0 is never an identity multihash so we don't have to worry about conflicting with
-0.
+Since we have identity multihashes and truncated hashes the hash length can be literally
+any number, even 0, so this is an actual thing that *can* occur.
 
 However, after we write one digest we'll need to write another, and 1 would
 be both a valid increment **and** a valid length. So we write the DELTA
 for the subsequent lengths +2 which means we lose 2 bytes in the 1byte DELTA
 compression space.
 
-***Side Quest**
+This means that a CIDv0 with a completely truncated hash is encoded as:
 
-This isn't relevant as we lose the zero byte for increasing by 2 in order to reserve
-1, but it is interesting to think about.
-
-You can have a zero byte truncated SHA2-256 hash. Luckily, a 0 byte read is also
-zero bytes, so we don't even have to lose a single reserved byte in the DELTA compression
-table of our VARINT compression space. That's right, congradulations, you just shaved
-a single bit.
-
-This means that a CIDv0 with a completely truncated hash is:
-
-[ 18, 0 ]
+[ 18, 2 ]
 
 Hey look, there is a hash you can predict.
 
-This means that we shave 1byte off of every CIDv0 after the first CIDv0.
+This sorted compaction means that we shave 1byte off of every CIDv0 after the first CIDv0.
 
 ```
 RAW                COMPRESSED
@@ -335,28 +339,29 @@ RAW                COMPRESSED
 [ 18 , 1 , 2 ]     [ 2, 2 ]      // CIDv0 truncated single byte hash
 ```
 
-## CIDv1
+### CIDv1
 
-Now you write the first CID prefix. The following VARINT is the codec. The
-one after is the hash function. Now, every digest is grouped together and sorted
-length first.
+CIDv0 entries are prefixed by 1, then their codec and hashing function VARINTs, then a
+**series** of digests using the same DELTA compression rules for the length
+as CIDv0.
 
-The length of each digest is the DELTA from the prior length.
+This means every digest is grouped together and sorted length first.
+
+Parsing the digest series is as easy as reading a VARINT and:
+
+* if it's 0 the link header is terminated
+* if it's 1 this series of digests has ended and a new digest is next
+* if it's 2 or greater then it's the DELTA length -2.
 
 We can't shave any bytes by not writing the subsequent lengths because we wouldn't
-have anything for termination. We need 1 for termination of the sequence anyway
-so we might as well use DELTA + 2 again in order to compress down the length
+have anything for termination . We need 1 for termination of the sequence anyway
+so we might as well use DELTA +2 again in order to compress down the length
 as well.
 
-This last one will rarely be used outside of whacky inline CID use cases, but it's
-nice to know that we squeezed as much as possible. We've got the DELTA algorithm
-around anyway, might as well use it consistently :)
-
-While the DELTA compression is interesting, by far the best savings we get are
-on de-duplication of common prefixes. It's actually the majority use case that
-a block will primarily contain links with the same address prefix. In fact,
-this is one of the few complaints we've heard about CID's in the past. Now you
-pay 3 bytes, ever, for the prefix and all subsequent CID's shave a byte.
+This DELTA compression of the CID length is rarely going to show gains since hashes
+are rarely above the 1b VARINT threshold, so outside of whacky inline CID use cases
+you won't save much. But We've got the DELTA algorithm around anyway, might as well
+use it consistently and shave a few bytes off of large identity multihashes :)
 
 ```
 RAW                COMPRESSED
@@ -368,6 +373,14 @@ RAW                COMPRESSED
 [ 1 , 85 , 0,  2 , 1 , 3 ]     [ 2 , 1 , 3 ]
 ```
 
+While the DELTA compression is interesting, by far the best savings we get are
+in de-duplication of common prefixes. It's actually the majority use case that
+a block will primarily contain links with the same address prefix. In fact,
+this is one of the few complaints we've heard about CID's in the past. Now you
+pay 3 bytes, ever, for the prefix and all subsequent CID's 3 or more bytes. And
+of course, this all ends up in a compression table that makes is as cheap
+as possible to refer to these links as often as you like in your structure.
+
 ***Side Quest***
 
 The digests are hashes. The only exception is the identity multihash, so you could
@@ -375,7 +388,9 @@ in theory find string compression techniques to apply to the digest.
 
 This is the only remaining space we have for compression of CIDs, the identity digest
 could theoretically have additional string compression techniques applied to it
-and you have a reliable token already in place
+and you have a reliable token already in place. Compressing the hashes is useless
+but we already have a token that differentiates identity multihashes from the rest
+so you could apply additional string compression quite selectively.
 
 # CONSTANTS
 
@@ -437,7 +452,7 @@ const STRUCTURE_EMPTY_MAP               = 235
 const STRUCTURE_EMPTY_LIST              = 234
 
 const STRUCTURE_MAX_INLINE_VARINT_FIRST BYTE = 233
-``
+```
 
 Special tokens for first byte parsing to support
 inline structures when no links or cids are present.
