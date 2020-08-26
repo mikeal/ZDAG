@@ -17,8 +17,8 @@ The structure of the data is finally written to the last section of the block.
 
 # IPLD_DATA_MODEL
 
-The IPLD Data Model is a superset of JSON types. It adds two types: bytes
-and links.
+The [IPLD Data Model](https://github.com/ipld/specs/blob/master/data-model-layer/data-model.md)
+is a superset of JSON types. It adds two types: bytes and links.
 
 Many non-JSON formats support inline binary and there are large efficiency
 gains to be had from using binary without string encoding as currently
