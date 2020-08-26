@@ -128,7 +128,7 @@ we assign a token for list termination instead.
 
 We use 255 and below for tokens. This allows the parsing
 rules to never use more than a single byte and it allows us to inline VARINTs
-127 and below. VARINTs that begin with a byte in a reserved token range must be prefixed with 255
+127 and below. VARINTs that begin with a byte in a reserved token range must be prefixed with STRUCTURE_VARINT
 in order to protect the token range, which means that we only take a penalty byte when
 the numbers are very large. This penalty only applies when we are parsing a token, there
 are many cases where we parse a VARINT and a token is not possible and so we do not take
@@ -476,7 +476,7 @@ eliminates the performance difference of different key types in other formats.
 Since maps MUST be deterministically sorted and we already have a deterministically
 sorted value index we can write all map keys using DELTA compression.
 
-We reserve 0 for termination of the sequence. We the encode the DELTA +1 for every
+We reserve 0 for termination of the sequence. We then encode the DELTA +1 for every
 map key.
 
 Not only does this compress the size of the key references, it makes it **IMPOSSIBLE**
@@ -486,17 +486,18 @@ a sorted table and if you try to write the same entry twice you'll terminate the
 ### STRUCTURE_CONTAINER_TYPING
 
 First of all, since empty maps and lists have their own token we don't need to worry
-about differentiating typed and untyped containers. In fact, it's best to not think
-of the typing in ZDAG as anything but a compression optimization as it is likely to
+about differentiating emtyp typed containers from empty untyped containers.
+In fact, it's best to not think of this container typing as anything but
+a compression optimization as it is likely to
 conflict with typing rules you may be used to in your programming language.
 
-It's fairly commong to have containers (maps and lists) that only contain entires
+It's fairly common to have containers (maps and lists) that only contain entries
 of a single type. Since these containers must prefix every value with a token
 for their type there's a compression gain to be had if we add tokens for maps and
 lists that only contain a single type. This means that every value type we optimize
 for will need to reserve two tokens, one for list and one for map.
 
-This rule only applies to the following value types:
+We have typed containers for the following value types:
 
 * strings
 * bytes
@@ -511,15 +512,15 @@ only a single byte. Same for ints, since they are mostly inlined. You could theo
 floats, signed floats, and zero point floats to this list but you'd end up
 increasing the necessary tokens for each case. Each token you reserve reduces the
 available range of inline VARINTs, so there's a question here about how common
-these are compared to integers in the high ranges.
+these are typed containers are compared to integer values in the high ranges.
 
 The compression rule is simple:
 
-* Any non-empty list that only contains entries of the same type MUST be encoded as a typed
+* Any non-empty list that only contains entries of the same suppored type MUST be encoded as a typed
   list.
   * You must encode this way, and validate this rule on parsing, in order to ensure
     determinism.
-* Any non-empty map that only contains values of the same type MUST be encoded as a typed
+* Any non-empty map that only contains values of the same supported type MUST be encoded as a typed
   map.
   * Again, determinism.
   * Note that the key type isn't a factor since we only allow one key type already.
@@ -534,9 +535,20 @@ TYPED_MAP values aren't offset since maps are already terminated when looking fo
 Standard DELTA compression rules are applied to TYPED_MAPS as standard MAPs.
 
 This means that a list of only bytes or strings costs only 1 byte to open, 1 to close
-( unless the structure is a the root, then it's omitted) and a VARINT for
+( unless the structure is at the root, then it's omitted) and a VARINT for
 every index in the compression table it references, effectively shortening the list encoding
 by a byte for every entry greater than zero. The same efficiency gain is made with typed maps.
+
+## ROOT_COMPRESSION
+
+A few final rules shave off the last unnecessary bytes.
+
+1. When a container type (map or list) is the root structure the final terminator of the container MUST
+   be omitted.
+2. When the final encoded data contains no links or values the two null bytes for those empty headers
+   (0 to terminate the links header, 0 for the size of an empty values header) must be omitted.
+   * When encoding an inline VARINT as the root structure you MUST prefix a 0, 1, or 18 value with
+     the STRUCTURE_VARINT token.
 
 # CONSTANTS
 
