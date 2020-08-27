@@ -290,6 +290,17 @@ LIST  VARINT    LINK   INDEX      INDEX
 ```
 
 Not only did we reduce the typing tokens but we shed the list
-open and close tokens.
+open and close tokens. That's 4 bytes for every entry in the list, so
+close to 1K in total across 254 entries.
 
+Not only that, maps get DELTA compression of the key reference, so
+they will almost always be one byte, even if you greatly increase the
+number of entries in the block. Given how much savings we have so far
+that's probably warranted.
+
+This is a another thing to keep in mind, DELTA compression of the map
+keys give us an opportunity to cut the pointer size down. If you know
+that all your string values are only going to be used for map keys
+you can be pretty sure they'll stay quite small even if the
+compression table for the values gets incredibly large.
 
