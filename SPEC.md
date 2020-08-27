@@ -86,7 +86,7 @@ to leverage since most language libraries for CBOR, and comparable formats, only
 provide a single method of encoding native data structures, so developers
 can't really leverage these features very effectively in their data structures ***and***
 these features are totally off limits to those of us building content
-addressed data structures.
+addressed data structures because determinism means only having one encode setting.
 
 ZDAG takes a different approach. Knowing that we need to ensure determinism means
 that we can only ever have one way to encode something. We can actually leverage
