@@ -229,9 +229,9 @@ These are the cases where we use DETLA compression:
 * HEADER_LINKS: We need 0 for termination of the header and 1 for termination of
   a prefix compression sequence. So when we write the hash digest lengths we use the DELTA +2.
 * HEADER_VALUES: The values header begins with the full length of the header as a VARINT.
-  This could potentially be reduced in size by using DELTA compression but we'd lose
+  This could potentially be reduced in size by using DELTA +1 sequence instead but we'd lose
   the ability to skip over the values header to the STRUCTURE when parsing so it's probably
-  not worth it. So value lengths are the DELTA (no increment).
+  not worth it. So value lengths in the values header are the DELTA (no increment).
 * STUCTURE_MAP_KEY_SORTING: since map keys are only a single type reference to the value table
   and the same key can never occur twice, we can safely reserve only 0 for termination of the sequence.
   Map key references are written as the DELTA +1. This not only reduces the size of the references,
