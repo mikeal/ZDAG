@@ -122,7 +122,7 @@ techniques.
 We use low numbers (0, 1) for termination of sequences that are leveraging DELTA
 compression so that we can keep the offset small and maximize the effect of DELTA
 compression. The one case where we do not use a 0 or 1 for termination is in a normal (untyped)
-list because we cannot use DELTA compression (lists are not deterministically sorted)
+list because we cannot using DELTA compression (lists are not deterministically sorted)
 and we prefer to reserve 0 for inline VARINT's because it's quite common, so
 we assign a token for list termination instead.
 
@@ -196,7 +196,7 @@ For instance:
 
 This may be novel, or maybe not, i haven't seen these things plugged
 together in this exact way before, but VARINT has been around a long
-time so I doubt I'm the first person to build something liek this.
+time so I doubt I'm the first person to build something like this.
 I definitely didn't invent compression tables :P
 
 Finally, because these tables have to be parsed into a list of constants
