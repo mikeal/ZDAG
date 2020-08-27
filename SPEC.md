@@ -295,7 +295,7 @@ you hashes of the other link headers in your block store.
 
 ### CIDV0-COMPRESSION
 
-To start, we need a few tokens. One to signal if there are CIDv0's, 1 for CIDv1, and we need a token
+To start, we need a few tokens. One to signal if there are CIDv0's, one for CIDv1, and we need a token
 to terminate the link header.
 
 We need to know if the header is terminated under only 2 conditions:
@@ -324,21 +324,21 @@ a constant in close scope already. A decompressor will need an 18 shortly
 in order to materialize the following the digests into complete CIDs.
 So there isn't a better byte to reserve.
 
-We use 1 to signal a new CIDv1 prefix.
-
-Once we're in the DELTA compression of the digests we're going to need to
+Once we're in the DELTA compression of the digest lengths we're going to need to
 increment to avoid token conflicts and the smaller we make that increment
 the better the DELTA compression. Luckily, once we're parsing hash digests
-we don't need 18 for the CIDv0 token anymore, so 1 is the natural answer.
+we don't need 18 for the CIDv0 token anymore.
 
-That means that 0 and 1 can't be used as digest length DELTAs, so we write the
+We use 1 to signal a new CIDv1 prefix since it comes after 0 :)
+
+This means that 0 and 1 can't be used as digest length DELTAs, so we write the
 DELTA + 2 to avoid token conflicts.
 
 This means that a CIDv0 with a completely truncated hash is encoded as:
 
 [ 18, 2 ]
 
-Hey look, there is a hash you can predict.
+Hey look, there is a hash you can predict :P
 
 This sorted compaction means that we shave 1byte off of every CIDv0 after the first CIDv0.
 
@@ -352,26 +352,27 @@ RAW                COMPRESSED
 
 ### CIDV1-COMPRESSION
 
-CIDv0 entries are prefixed by 1, then their codec and hashing function VARINTs, then a
-**series** of digests using the same DELTA compression rules for the length
-as CIDv0.
+One problem with CID's in general is that they contain a lot of duplicate
+prefix information. Blocks tend to link to only a few prefixes yet CID's
+consume at least 3 bytes worth of prefix per CID ( version, codec, hash function).
 
-This means every digest is grouped together and sorted length first.
+The CID sorting algorithm sorts CIDv1's by common prefix. We then use sequencing
+rules to parse every subsequent CID's hash digest until we encounter another prefix
+or the end of the link header.
+
+CIDv1 prefix begins with 1, then the codec VARINT, then the hashing function VARINTs, then a
+**series** of digests using the same DELTA compression rules for the length
+as CIDv0 (DELTA + 2).
 
 Parsing the digest series is as easy as reading a VARINT and:
 
 * if it's 0 the link header is terminated
-* if it's 1 this series of digests has ended and a new digest is next
+* if it's 1 this series of digests has ended and a new prefix is next
 * if it's 2 or greater then it's the DELTA length -2.
 
-We can't shave any bytes by not writing the subsequent lengths because we wouldn't
-have anything for termination . We need 1 for termination of the sequence anyway
-so we might as well use DELTA +2 again in order to compress down the length
-as well.
-
 This DELTA compression of the CID length is rarely going to show gains since hashes
-are rarely above the 1b VARINT threshold, so outside of whacky inline CID use cases
-you won't save much. But We've got the DELTA algorithm around anyway, might as well
+lengths are rarely above the 1b VARINT threshold, so outside of whacky inline CID use cases
+you won't save much. But we've got the DELTA algorithm around anyway, might as well
 use it consistently and shave a few bytes off of large identity multihashes :)
 
 ```
@@ -389,13 +390,13 @@ While the DELTA compression is interesting, by far the best savings we get are
 in de-duplication of common prefixes. It's actually the majority use case that
 a block will primarily contain links with the same address prefix. In fact,
 this is one of the few complaints we've heard about CID's in the past. Now you
-pay for the prefix once and all subsequent CID's you get for just 1 byte (hash lenghth
+pay for the prefix once and all subsequent CID's you get for just 1 byte (hash length
 which puts us very close, if not better, than specialized block formats that
 only support linking to a single codec and hash function.
 
 And of course, this all ends up in a compression table that makes it very cheap
-to refer to these links as often as you like in your structure. We haven't had
-this kind of de-duplication before so we don't entirely know how well we can
+to refer to these links as often as you like in your structure using VARINT pointres.
+We haven't had this kind of de-duplication before so we don't entirely know how well we can
 leverage it.
 
 ***Side Quest***
@@ -406,8 +407,16 @@ in theory find string compression techniques to apply to the digest.
 This is the only remaining space we have for compression of CIDs, the identity digest
 could theoretically have additional string compression techniques applied to it
 and you have a reliable token already in place. Compressing the hashes is useless
-but we already have a token that differentiates identity multihashes from the rest
-so you could apply additional string compression quite selectively.
+but we already have the codec as a token that differentiates identity multihashes from the rest
+so you could apply additional string compression selectively.
+
+***Side Quest***
+
+Should we use DELTA + 3 in order to reserve 2 for a future version of CID?
+
+If a new version of CID presents itself before this spec is finished we should,
+but once this spec is finalized the parsing/sorting rules won't actually be able
+to support a future version without a new version of the spec.
 
 ## VALUES_HEADER_COMPRESSION
 
@@ -432,10 +441,10 @@ Later on, you'll see how we can often drop another byte for the typeing
 by using typed collections. Similarly we save a typing byte on map keys
 by only allowing one map key type (existing IPLD_DATA_MODEL constraint).
 When you add it all up, we can almost always build this table for free
-compared to other formats that would inline these values rather than
+when compared to other formats that would inline these values rather than
 creating the compression table.
 
-So developers can safely assume that ZDAG will give them a compression
+So developers can reasonably assume that ZDAG will give them a compression
 gain even when working with arbitrary JSON data. In practice, a lot of
 this data contains duplicate map keys and other common patterns where
 we show bigger gains. Unless you craft data with the specific intention
@@ -448,20 +457,21 @@ and other formats that don't require external schemas.
 There is an opportunity here for further compression when this is string data.
 
 I ran an experiment with an early version of ZDAG against 8 hours of filecoin
-chain data. The format shaved 8% off of the data. I then ran an experiment
+chain data. The format saved 8% compared to the existing `dag-cbor` data. I then ran an experiment
 compressing the VALUES_HEADER with DEFLATE and this showed only a 3% gain since
-almost none of the value data in the chain is well suited for compression. This
-indicates that, if further compression is to be applied to the VALUES_HEADER
-it should be done as a variant codec and **only** the VALUES_HEADER should be
-compressed.
+almost none of the value data in the filecoin chain is well suited for compression.
 
 As a final experiment I used DEFLATE on the STRUCTURE section as well and saw
 less than 1% compression gain. This is good, it indicates that the format itself is
 already very compressed.
 
+This indicates that if further compression is to be applied to the VALUES_HEADER
+it should be done as a variant codec and **only** the VALUES_HEADER should be
+compressed.
+
 Since the VALUES_HEADER is already determinstically sorted with low numbers for separators
 due to the DELTA compression, there is probably a string compression algorithm
-that is specific to this header that is yet-to-be-discovered.
+specific to this header that is yet-to-be-discovered.
 
 ## STRUCTURE_COMPRESSION
 
@@ -475,9 +485,11 @@ since we're going to be leveraging them for additional compression.
   * There can only be one way, ever, to encode the given data.
   * String map keys only
   * No duplicate map keys
+  * Deterministic map key ordering
 
-The full tokenization rules are detailed below, but it's useful to know a little bit
-about them in order to understand how these compression techniques work.
+The full tokenization rules are detailed far below this section (TODO),
+but it's useful to know a little bit about them in order to understand
+how these compression techniques work.
 
 * null, true and false are constants with their own reserved token.
 * signed ints and floats are prefixed with a type token
@@ -486,11 +498,13 @@ about them in order to understand how these compression techniques work.
 
 ### STRUCTURE_MAP_KEY_DELTAS
 
-Here we leverage the requirement that map keys are all strings in the IPLD data model.
+Here we leverage the requirement that map keys are all strings in the IPLD data model
+and the fact that they have to be deterministically sorted.
+
 Since we don't have type variance we don't need a typing token. This already effecively
 eliminates the performance difference of different key types in other formats.
 
-Since maps MUST be deterministically sorted and we already have a deterministically
+Since maps MUST be deterministically sorted and all map keys are already in a deterministically
 sorted value index we can write all map keys using DELTA compression.
 
 We reserve 0 for termination of the sequence. We then encode the DELTA +1 for every
@@ -503,7 +517,7 @@ a sorted table and if you try to write the same entry twice you'll terminate the
 ### STRUCTURE_CONTAINER_TYPING
 
 First of all, since empty maps and lists have their own token we don't need to worry
-about differentiating emtyp typed containers from empty untyped containers.
+about differentiating empty typed containers from empty untyped containers.
 In fact, it's best to not think of this container typing as anything but
 a compression optimization as it is likely to
 conflict with typing rules you may be used to in your programming language.
@@ -525,7 +539,7 @@ these containers, which is totally worth it since single typed containers for th
 types are far more common than very high numbers in user data.
 
 There's no bytes to be gained by typing the container for constants since they are already
-only a single byte. Same for ints, since they are mostly inlined. You could theoretically add signed ints,
+only use a single byte. Same for ints, since they are mostly inlined. You could theoretically add signed ints,
 floats, signed floats, and zero point floats to this list but you'd end up
 increasing the necessary tokens for each case. Each token you reserve reduces the
 available range of inline VARINTs, so there's a question here about how common
@@ -533,10 +547,13 @@ these are typed containers are compared to integer values in the high ranges.
 
 The compression rule is simple:
 
-* Any non-empty list that only contains entries of the same suppored type MUST be encoded as a typed
+* Any non-empty list that only contains entries of the same supported type MUST be encoded as a typed
   list.
   * You must encode this way, and validate this rule on parsing, in order to ensure
-    determinism.
+    determinism. Again, this does not necessarily align with the typing rules you may
+    have in schemas you apply to this data or the types in your programming language, this rule
+    is always applied when the data matches a specific criteria because that's the only way to
+    ensure determinism.
 * Any non-empty map that only contains values of the same supported type MUST be encoded as a typed
   map.
   * Again, determinism.
@@ -548,13 +565,15 @@ as regular lists use).
 
 TYPED_LIST indexes are offset by +1 in order to avoid conficting with the terminator.
 
-TYPED_MAP values aren't offset since maps are already terminated when looking for the next KEY.
-Standard DELTA compression rules are applied to TYPED_MAPS as standard MAPs.
+TYPED_MAP values aren't offset since maps are only terminated when looking for the next KEY and
+never when parsing the next value.
+DELTA compression rules are applied to TYPED_MAPS in the same was they are to all other MAPs.
 
 This means that a list of only bytes or strings costs only 1 byte to open, 1 to close
 ( unless the structure is at the root, then it's omitted) and a VARINT for
 every index in the compression table it references, effectively shortening the list encoding
-by a byte for every entry greater than zero. The same efficiency gain is made with typed maps.
+by a byte for every entry greater than zero. The same efficiency gain is made with typed maps
+which adds to the efficiency gains map already has from STRUCTURE_MAP_KEY_DELTAS.
 
 ## ROOT_COMPRESSION
 
@@ -566,6 +585,19 @@ A few final rules shave off the last unnecessary bytes.
    (0 to terminate the links header, 0 for the size of an empty values header) must be omitted.
    * When encoding an inline VARINT as the root structure you MUST prefix a 0, 1, or 18 value with
      the STRUCTURE_VARINT token.
+
+
+# BEWARE! DRAGONS!
+
+
+
+
+From here onward the spec is very incomplete. Commits are being pushed every day
+to this spec and the tooling for it and nothing below here has been edited or potentially
+even read once after writing.
+
+
+
 
 # CONSTANTS
 
