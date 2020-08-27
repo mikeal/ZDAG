@@ -290,8 +290,8 @@ guarantees determinism in the block format.
 
 In fact, since this block format is deterministic you could simply
 parse out the compressed links header, hash it, and use that hash to find
-any other blocks that links to the same set of blocks as this block if
-you hashes of the other link headers in your block store.
+any other blocks that link to the same set of blocks as this block if
+you have hashes of the other link headers in your block store.
 
 ### CIDV0-COMPRESSION
 
