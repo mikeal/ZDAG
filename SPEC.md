@@ -126,9 +126,10 @@ list because we cannot using DELTA compression (lists are not deterministically 
 and we prefer to reserve 0 for inline VARINT's because it's quite common, so
 we assign a token for list termination instead.
 
-We use 255 and below for tokens. This allows the parsing
-rules to never use more than a single byte and it allows us to inline VARINTs
-127 and below. VARINTs that begin with a byte in a reserved token range must be prefixed with STRUCTURE_VARINT
+We use a limited range decreasing from 127 for tokens in the STRUCTURE. This allows the parsing
+rules to never use more than a single byte and it allows us to inline VARINTs, both the small
+ones below the token range and the large ranges of numbers above this range.
+VARINTs that begin with a byte in a reserved token range must be prefixed with STRUCTURE_VARINT
 in order to protect the token range, which means that we only take a penalty byte when
 the numbers are very large. This penalty only applies when we are parsing a token, there
 are many cases where we parse a VARINT and a token is not possible and so we do not take
@@ -632,58 +633,41 @@ all structure tokens at the top end of the VARINT 1b range.
 
 ```js
 // only used for varints that conflict with reserved tokens
-const STRUCTURE_VARINT                  = 255
+const STRUCTURE_VARINT                  = 127
 
-const STRUCTURE_LIST_CLOSE              = 254
+const STRUCTURE_LIST_CLOSE              = 126
 
 
-const STRUCTURE_STRING_INDEX            = 253
-const STRUCTURE_BYTE_INDEX              = 252
-const STRUCTURE_NUll                    = 251
-const STRUCTURE_BOOLEAN_TRUE            = 250
-const STRUCTURE_BOOLEAN_FALSE           = 249
-const STRUCTURE_FLOAT                   = 248
-const STRUCTURE_MAP_START               = 247
-const STRUCTURE_LIST_START              = 246
-const STRUCTURE_LINK_INDEX              = 245
-const STRUCTURE_SIGNED_VARINT           = 244
-const STRUCTURE_SIGNED_FLOAT            = 243
-const STRUCTURE_ZERO_POINT_FLOAT        = 242
-const STRUCTURE_STRING_TYPED_MAP        = 241
-const STRUCTURE_BYTE_TYPED_MAP          = 240
-const STRUCTURE_LINK_TYPED_MAP          = 239
-const STRUCTURE_STRING_TYPED_LIST       = 238
-const STRUCTURE_BYTE_TYPED_LIST         = 237
-const STRUCTURE_LINK_TYPED_LIST         = 236
-const STRUCTURE_EMPTY_MAP               = 235
-const STRUCTURE_EMPTY_LIST              = 234
-
-const STRUCTURE_MAX_INLINE_VARINT_FIRST BYTE = 233
+const STRUCTURE_STRING_INDEX            = 125
+const STRUCTURE_BYTE_INDEX              = 124
+const STRUCTURE_NUll                    = 123
+const STRUCTURE_BOOLEAN_TRUE            = 122
+const STRUCTURE_BOOLEAN_FALSE           = 121
+const STRUCTURE_FLOAT                   = 120
+const STRUCTURE_MAP_START               = 119
+const STRUCTURE_LIST_START              = 118
+const STRUCTURE_LINK_INDEX              = 117
+const STRUCTURE_SIGNED_VARINT           = 116
+const STRUCTURE_SIGNED_FLOAT            = 115
+const STRUCTURE_ZERO_POINT_FLOAT        = 114
+const STRUCTURE_STRING_TYPED_MAP        = 113
+const STRUCTURE_BYTE_TYPED_MAP          = 112
+const STRUCTURE_LINK_TYPED_MAP          = 111
+const STRUCTURE_STRING_TYPED_LIST       = 110
+const STRUCTURE_BYTE_TYPED_LIST         = 109
+const STRUCTURE_LINK_TYPED_LIST         = 108
+const STRUCTURE_EMPTY_MAP               = 107
+const STRUCTURE_EMPTY_LIST              = 106
 ```
 
 Special tokens for first byte parsing to support
 inline structures when no links or cids are present.
 In order to inline these numbers you must prefix them
-with 255.
+with STRUCTURE_VARINT.
 
 ```
 const STRUCTURE_FIRST_BYTE_RESERVED_INTS = [ 0, 1, 18 ]
 ```
-
-***Side Quest***
-
-Where we situate the tokens is a bit of an open question. They
-either need to be at the high end of the 1b VARINT range or
-the high end of the *entire* VARINT range.
-
-Remember, we take a penalty byte whenever we encode an inline VARINT
-that conflicts with the token range. Right now, we're conflicting
-with many many many more numbers than we would be if we used
-127 and below, but we're operating under the assumption that numbers
-in the low hundreds will occur more often than very high numbers
-in the entire range we've cut off. That may not be true, and
-this is something we should be able to test for at some point.
-
 # ENCODE
 
 ```
