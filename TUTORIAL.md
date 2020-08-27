@@ -43,7 +43,7 @@ The most basic one would look something like this.
   [ '2020-08-27T03:19:40.0' , CID(1) ],
   /*
  118        125 0          117 0     126 // Binary
-LIST        STR INDEX    LINK INDEX   END_LIST
+LIST        STR INDEX     LINK INDEX END_LIST
   */
   [ '2020-08-27T03:19:41.5' , CID(1) ],
   [ '2020-08-27T03:19:42.6' , CID(1) ],
