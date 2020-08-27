@@ -368,7 +368,7 @@ Parsing the digest series is as easy as reading a VARINT and:
 
 * if it's 0 the link header is terminated
 * if it's 1 this series of digests has ended and a new prefix is next
-* if it's 2 or greater then it's the DELTA length -2.
+* if it's 2 or greater then it's the length DELTA +2.
 
 This DELTA compression of the CID length is rarely going to show gains since hashes
 lengths are rarely above the 1b VARINT threshold, so outside of whacky inline CID use cases
