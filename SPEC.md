@@ -224,12 +224,12 @@ This means that we can't always use 0 and 1 as valid DELTAs. So we store the
 DELTA +1 or +2 in these specific cases, which reduces the available
 compression addresses by the lowest possible amount.
 
-These are the cases where we use DETLA compression:
+These are the cases where we use DELTA compression:
 
 * HEADER_LINKS: We need 0 for termination of the header and 1 for termination of
   a prefix compression sequence. So when we write the hash digest lengths we use the DELTA +2.
 * HEADER_VALUES: The values header begins with the full length of the header as a VARINT.
-  This could potentially be reduced in size by using DELTA +1 sequence instead but we'd lose
+  This could potentially be reduced in size by using a DELTA +1 sequence instead but we'd lose
   the ability to skip over the values header to the STRUCTURE when parsing so it's probably
   not worth it. So value lengths in the values header are the DELTA (no increment).
 * STUCTURE_MAP_KEY_SORTING: since map keys are only a single type reference to the value table
@@ -269,7 +269,7 @@ First, we need to give CID's a deterministic sorting order.
 ```
 [ v0 , length 10, digest ]
 [ v0 , length 11, digest-a ]
-[ v1, codec, hashfn ] [ digest-a ]
+[ v1, codec, hashfn ] [ length-0 ]
 [ v1, codec-a, hashfn-1 ] [ length-1] [ digest-a ]
 [ v1, codec-b, hashfn-1 ] [ length-1] [ digest-a ]
 [ v1, codec-b, hashfn-2 ] [ length-1] [ digest-a ]
