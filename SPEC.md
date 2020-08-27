@@ -49,6 +49,8 @@ binary encoding without losing any fidelity.
 
 Unless you were to specifically craft data to overwhelm the compression
 table, a ZDAG encoding is almost guaranteed to be smaller than JSON or CBOR.
+If you keep your blocks small, like we tend to do, you'll see compression
+gains without re-shaping your data to fit the compression rules.
 
 Also note that, in order to guarantee determinism, the IPLD Data Model requires
 deterministic order of some sort for maps. This is not always enforced because
@@ -206,6 +208,25 @@ when decompressed with little or no extra work in the parser. Since
 values are de-duplicated and referenced with VARINT pointers later
 in the STRUCTURE the natural parsing method will be to return references
 to those constants as long as they are immutable.
+
+***Side Quest***
+
+Attacking the table.
+
+ZDAG will produce larger encodes of data if you either write a very large
+amount of data with string values or you design data specifically to attack
+the compression table.
+
+However, this won't occur naturally very often. UTF8's uses a similar
+approach to compression as VARINT which means that the number of small
+strings is limited to a set that lines up nicely against VARINT compression.
+This means that, even with large amounts of data that avoids all other
+compression rules you'd still be minimized the size of the table pointers
+due to the VARINT compression.
+
+You could craft a more effective attack using binary value data. Then
+you'd have the entire 8 byte range of unique values in the table and
+could make the pointers cost more than the byte data it refers to.
 
 ## DELTA
 
@@ -452,6 +473,15 @@ we show bigger gains. Unless you craft data with the specific intention
 of overwhelming the compression table and opting out of other compression
 patterns in the format, ZDAG can be a drop-in replacement for JSON, CBOR,
 and other formats that don't require external schemas.
+
+### VALUES_HEADER_STRING_COMPRESSION_VARIANTS
+
+It is relatively simple to add string compression in variant codecs like
+`zdag-deflate` since all the potential string data is already packed
+into a contained header. In fact, the initial POC for zdag included
+this option and while it didn't show reasonable gains for blockchain
+value data it would likely be much more effective when applied
+to a block that consists mainly of UTF8 string data.
 
 ***Side Quest***
 
