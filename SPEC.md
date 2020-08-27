@@ -313,7 +313,7 @@ We use 18 as the token for signaling CIDv0.
 Why 18?
 
 First of all, you need a 1b token to signal that there are CIDv0s. You
-need a byte full in order to reserve the 0 byte for termination of the
+need a full byte in order to reserve the 0 byte for termination of the
 structure later, so you can't even shave bits below a full byte.
 
 This means that we effectively don't have to reserve a byte for this
