@@ -86,8 +86,10 @@ Duplicate links will be compressed by their VARINT_TABLE. So that's
 probably close to a 50% saving (for this totally contrived example).
 
 But since the strings never repeat we don't gain anything from the
-compression table for the values. Let's change that, let's find
-a point in the datetime strings that are most common.
+compression table for the values.
+
+Let's change that, let's find a point in the datetime strings that are
+most common and split on it so that it de-duplicates.
 
 ```js
 [
@@ -103,8 +105,8 @@ LIST   STR  INDEX   STR  INDEX  LINK INDEX   END_LIST
 
 Now all of these common prefixes will de-duplicate, leading to a huge saving!
 
-We deduplicated a lot of commong strings but we take a small cost. The
-size of each entry is a little larger.
+We deduplicated a lot of common strings but we take a small cost. The
+size of each entry is a little larger (2 bytes).
 
 We take another string token, and our common prefix pointer is 2 bytes
 because it's a large VARINT.

@@ -499,6 +499,8 @@ how these compression techniques work.
 
 ### STRUCTURE_MAP_KEY_DELTAS
 
+This is a very effiicent structure for map encoding.
+
 Here we leverage the requirement that map keys are all strings in the IPLD data model
 and the fact that they have to be deterministically sorted.
 
@@ -510,6 +512,11 @@ sorted value index we can write all map keys using DELTA compression.
 
 We reserve 0 for termination of the sequence. We then encode the DELTA +1 for every
 map key.
+
+When you combine the savings of the DELTA encoding here and in the creation of the
+table we can likely create this entire stucture against a compression table for less
+space that most formats can encode a map even if we never see any benefit from
+de-duplication.
 
 Not only does this compress the size of the key references, it makes it **IMPOSSIBLE**
 to encode an indeterministic map, since you're only able to increase the index of
