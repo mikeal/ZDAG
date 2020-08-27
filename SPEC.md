@@ -320,7 +320,7 @@ This means that we effectively don't have to reserve a byte for this
 signal at all. We share this signal byte with the header terminator.
 
 18 is the actual first byte of a CIDv0. An encoder likely has 18 as a
-a constant in close scope already. A decompressor will need an 18 shortly
+constant in close scope already. A decompressor will need an 18 shortly
 in order to materialize the following the digests into complete CIDs.
 So there isn't a better byte to reserve.
 
@@ -360,7 +360,7 @@ The CID sorting algorithm sorts CIDv1's by common prefix. We then use sequencing
 rules to parse every subsequent CID's hash digest until we encounter another prefix
 or the end of the link header.
 
-CIDv1 prefix begins with 1, then the codec VARINT, then the hashing function VARINTs, then a
+We begin each CIDv1 prefix with 1, then the codec VARINT, then the hashing function VARINT, then a
 **series** of digests using the same DELTA compression rules for the length
 as CIDv0 (DELTA + 2).
 
