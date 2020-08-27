@@ -35,3 +35,12 @@ Even more efficient
   [ DELTA FOR INSERT,VARINT, DELTA FOR INSERT, VARINT ]
 ]
 ```
+
+If we combine this with ZBL we can build a compelling browser transport.
+
+We return a ZBL for any request without a cache state. We then introduce
+a header like an ETAG, maybe ZTAG, that is the CID of the prior response
+(ZBL). The header is only sent if the client has the complete graph.
+
+You can then return this structure as a diff knowing the graph
+you can de-duplicate from.

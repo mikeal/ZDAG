@@ -613,6 +613,26 @@ every index in the compression table it references, effectively shortening the l
 by a byte for every entry greater than zero. The same efficiency gain is made with typed maps
 which adds to the efficiency gains map already has from STRUCTURE_MAP_KEY_DELTAS.
 
+### STRUCTURE_TYPED_SET **NEW!**
+
+The IPLD data model does not have a Set. However, if a list is offered to ZDAG that:
+
+* Has more than one entry
+* Has no duplicate entries
+* Is ordered such that the pointer references only increase
+
+You MUST encode the list as a typed set instead of a list.
+
+Note: the data will still decode to a regular list as far as the IPLD Data Model is concerned
+this is strictly a compression rule that must be enforced reliably at encode and decode time
+to ensure determinism.
+
+We can then follow the same rules as DELTA compressed Maps, encoding the DETLA from the
+prior key +1 and terminating with 0.
+
+This means that when you have a unique un-ordered list all you need to do is apply the sorting
+rules before passing the list to ZDAG and you'll get DELTA compression of the table pointers.
+
 ## ROOT_COMPRESSION
 
 A few final rules shave off the last unnecessary bytes.
