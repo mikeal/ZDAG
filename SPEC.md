@@ -256,8 +256,9 @@ These are the cases where we use DELTA compression:
   not worth it. So value lengths in the values header are the DELTA (no increment).
 * STUCTURE_MAP_KEY_SORTING: since map keys are only a single type reference to the value table
   and the same key can never occur twice, we can safely reserve only 0 for termination of the sequence.
-  Map key references are written as the DELTA +1. This not only reduces the size of the references,
-  it makes it impossible to write indeterministic maps.
+  Furthermore, since empty map is its own token termination of the first key would be impossible
+  so we can allow 0 for the first key only. From that point on, 0 is not a valid key and be
+  safely used for termination.
 
 ## LINKS_HEADER_COMPRESSION
 
@@ -641,7 +642,7 @@ _______________
 {     "hello", "world", "world", "hello" }     <-- INPUT
 OPEN  KEY      VAL      KEY      VAL     CLOSE <-- SYNTAX
 113   0        1        1        0       0     <-- BINARY
-STR   DELTA+0  INDEX    DELTA+1  INDEX         <-- MAP_ALGO
+STR   DELTA    INDEX    DELTA  INDEX           <-- MAP_ALGO
 TYPED
 MAP
 ```
@@ -663,7 +664,7 @@ Note: the data will still decode to a regular list as far as the IPLD Data Model
 this is strictly a compression rule that must be enforced reliably at encode and decode time
 to ensure determinism.
 
-We can then follow the same rules as DELTA compressed Maps, encoding the DETLA from the
+We can then follow the same rules as DELTA compressed Maps, encoding the DELTA from the
 prior key +1 and terminating with 0.
 
 This means that when you have a unique un-ordered list all you need to do is apply the sorting
@@ -856,8 +857,6 @@ are of that type and assign it a typed collection token.
 
 
 
-
-
 # DECODE
 
 Decode requires the following globals to be provided.
@@ -1034,11 +1033,29 @@ ___________
 | 2 | "c" |
 ‾‾‾‾‾‾‾‾‾‾‾
 
-[    "a"      "b":     9,  "c":    9   }     <-- INPUT
-OPEN KEY      KEY      VAL KEY     VAL CLOSE <-- SYNTAX
-119  0        1        9   1       9   0     <-- BINARY
-MAP  DELTA+0  DELTA+1      DELTA+1           <-- DELTA_MAP_ALGO
+[     "a",   "c",   "b"    ]        <-- INPUT
+OPEN  VAL    VAL    VAL    CLOSE    <-- SYNTAX
+107   0      2      1      126      <-- BINARY
+BTL   INDEX  INDEX  INDEX  END LIST <-- BYTE_TYPED_LIST
 ```
+
+If the bytes happen to be in the order of the index table
+a delta list is used.
+
+```
+Value Compression Table
+___________
+| 0 | "a" |
+| 1 | "b" |
+| 2 | "c" |
+‾‾‾‾‾‾‾‾‾‾‾
+
+[     "a",   "b",   "c"    ]        <-- INPUT
+OPEN  VAL    VAL    VAL    CLOSE    <-- SYNTAX
+107   0      1      1      0        <-- BINARY
+BDL   DELTA  DELTA  DELTA  END LIST <-- BYTE_TYPED_LIST
+```
+
 
 ## ZBL_DECODE_FIRST_BYTE
 
