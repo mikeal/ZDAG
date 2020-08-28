@@ -46,15 +46,23 @@ ZDAG.
 { "hello": "world", "world", "hello" }
 ```
 
-The compression table is deterministically ordered, so you can predict
-the table ordering of all the keys and values in your structure but
-you can't alter the sort order programmatically.
+The compression table is strictly ordered, so you can *predict*
+the table ordering of all the keys and values in your structure.
+
+Smaller strings sort to the low (cheap) end of the compression table, so you can chunk
+values into parts and predict the cost of their pointers in order to measure those
+costs against any gain you will see from de-duplication of newly common values
+that would result from the chunking.
+
+So you can *program* the compression table by shaping the data
+even if you can't actually adjust the sort order of the compression
+table by hand.
 
 ZDAG is a fully deterministic format. Data can only ever be encoded
 one way, so the same structure will always roundtrip to the same
 binary representation in every implementation. Most of these
-determinism rules don't even have to be handled by validation
-code because they are part of the compression algorithm.
+determinism rules don't even have to be handled by expensive validation
+code because they are part of the compression algorithms.
 
 ## De-tokenization of well typed maps and lists.
 
@@ -69,7 +77,7 @@ const b = [ 'true', 'false', 'true']
 
 When serialized, `b` will actually be 2 bytes smaller than `a`. This
 is because `a` needs to prefix the strings with a typing token and
-b does not because the token used to open the list also hinted
+`b` does not because the token used to open the list also hinted
 the type for every entry.
 
 The same rules are applied when string, link, or byte types are
@@ -85,7 +93,7 @@ This also works for maps, so `b` is 1 byte smaller than `a`.
 ## Delta compressed map key pointers and well ordered sets.
 
 As the compression table grows pointers to table entries also grow
-in size as well to represent larger numbers.
+in size to represent larger numbers.
 
 But map keys are delta compressed. This means that every entry
 in the map only has to store the delta from the prior key
@@ -95,6 +103,11 @@ compression table is large.
 
 The same is true of well typed lists and maps when the values
 happen to match the sort order of the compression table.
+
+Also keep in mind that maps don't require a typing token for their key
+because we only allow one map key type. This means maps are very cheap in ZDAG
+compared to other formats and the keys aren't just de-duplicated across the
+structure, the pointers are kept quite small.
 
 ```js
 import varint from 'varint'
@@ -111,15 +124,16 @@ const a = buffers
 cosnt b = buffers.reverse()
 ```
 
-In this example `a` will be 126 bytes smaller than b because
+In this example `a` will be 126 bytes smaller than `b` because
 the entries in its list were sorted in alignment with the table.
 That's because the delta compression kept the pointers low
-while `b` ends up using 126 2byte pointers.
+while `b` ends up using 126 2byte pointers (VARINT encoding
+of 1byte numbers ends at 126).
 
 ## Linking
 
-ZDAG includes a native link type that uses CID. A CID is a hash
-based pointer.
+ZDAG includes a native link type that uses [CIDs. A CID is a hash
+based pointer.](https://github.com/multiformats/cid)
 
 This allows you to construct data structures that link between each
 other by hash.
@@ -127,28 +141,34 @@ other by hash.
 That means you can use ZDAG to de-duplicate data shared between
 different pieces of encoded data. So if you want two pieces
 of encoded data to include a third piece of common data you
-can have the first two pieces of data link to the third which
+can have the those two pieces of ZDAG encoded data link to the third, which
 means you've compressed the total structure across differ parts
 through another higher form of de-duplication.
 
-Another nice feature of links is that, similary to URL schemes
+Another nice feature of CID links is that, similar to URL schemes
 like `ftp://` and `http://`, different pieces of data can
 be encoded in different formats. So if there is data
 that was already encoded in another format you don't have to
-re-encode it with ZDAG in order to de-duplicate it.
+re-encode it with ZDAG in order to link to it from ZDAG.
 
 You can link to any hash based format, like those found in
 `git`, `IPFS`, `Bitcoin`, `ETH`, and many more. And of course
 you can link different pieces of ZDAG data between each other.
 
+These links are understood by decentalized systems like IPFS too. So
+you can actually share these larger graphs of compressed data
+in decentralized networks by their CID (you can derive an address
+for anything you encode with ZDAG by hashing it) and even link to
+your ZDAG compressed data in blockchain transactions.
+
 ## ZDAG-DEFLATE & ZDAG-BROTLI
 
 Normally it's a terrible idea to combine compressors as it's
 expensive and yields little gain. However, all of ZDAG's compression
-is happening in the structure against a compression table that
+is happening in the structure encoding against an isolated compression table that
 stores all the string and byte data.
 
-This actually puts us in an optimal path for additional string
+This puts us in an optimal position for additional string
 compression as we have already isolated where applying this
 compression will be most effective and can apply it there
 and nowhere else.
@@ -158,9 +178,9 @@ the frequency of common separators between each of your values,
 and they are already ordered, so it's actually ideally prepared
 for a string compressor.
 
-This is a separate variant codec because:
+This is implemented as a separate variant codec because:
 
-* Optionality in choosing the string would break determinism.
+* Optionality in choosing the compression would break determinism.
 * We don't want to turn it on by default because if the values
   are byte data they may already be compressed or are encrypted.
   This is actually the majority case with blockchain data.
@@ -172,7 +192,7 @@ This is a separate variant codec because:
 * fully deterministic
 * supports the full IPLD data model
 * links can be parsed without reading the entire block
-* common link prefixes are de-duplicated (compressed)
+* common link prefixes are de-duplicated (link header compression)
 * paths can be read without fully parsing most values
 * some paths can even be ruled out of being available simply by checking
   the lengths of potential map keys
