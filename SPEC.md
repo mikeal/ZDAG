@@ -71,7 +71,7 @@ common map keys. Then the structure is just a series of tokens that give us type
 hints, containers (maps and lists), constants (null, true, false), number values,
 and pointers to each compression table.
 
-This is large departure from the approach taken by JSON and CBOR and it is not
+This is a large departure from the approach taken by JSON and CBOR and it is not
 entirely without cost.
 
 The compression table for links is "free" when compared against link representations
@@ -84,39 +84,42 @@ of every value in the table, and the total size of the header, which could cost
 more bytes than just inlining the values when there is no de-duplications.
 
 For instance, when JSON encodes a string it uses a closing and opening delimiter
-between the value data which costs 2 bytes. Most often, ZDAG will use 1byte
+between the value data which cost 2 bytes worth of tokens. Most often, ZDAG will use 1byte
 (read about DELTA compression below to see how we keep this low even
 when the values are large in size) for the length of the value in the table
-and then *may* need to use both a token for the typing of the value *and* a
+and then *may* need to use both a token in the structure for typing the value *and* a
 VARINT pointer to the table index.
 
 We're able to be reliably be smaller than JSON for small blocks because we cut
-many of the separator tokens in containers, so the table ends up not costing us
-anything, but CBOR is a bit better than that. CBOR has a few different ways
+the separator tokens in containers, so the table ends up not costing us
+anything by comparison, but CBOR is a bit better than that. CBOR has a few different ways
 it encodes data.
 
 CBOR uses a linear tokenization like JSON but it's a binary format and is much
-smarter about how it uses tokens to reduce size. There's also optionality in CBOR
-(something we have to turn off in `dag-cbor` to ensure determinism) so there
+smarter about how it uses tokens to reduce size. There's a lot of optionality in CBOR
+(something we often have to turn off in `dag-cbor` to ensure determinism) and there
 are ways to encode small containers and values that reduce the space required for
 CBOR's tokens. However, there's a cost to the approach CBOR takes as well.
 
 In CBOR, only very small numbers (0-32?) can be inlined as values. That means every
 number over 32 requires a type hint. This is a necessary tradeoff for CBOR to
-inline other information about small values and containers to save token space.
+inline other information about small values and containers to save token space (
+small values take only 1byte instead of 1 (one for the type and one for the length or
+for a delimiter to end the sequence).
 
 ZDAG takes a different approach that optimizes for storing large numbers without
 a typing token, so if you have lots of numbers the token frequence of ZDAG will
 be much lower than CBOR and will give a smaller representation even without
 hitting other optimizations.
 
-ZDAG uses numbers in the high end of the 1byte VARINT range. This allows us to
+All ZDAG tokens use numbers in the high end of the 1byte VARINT range. This allows us to
 inline integers both higher and lower than the token range. Only integers that
 conflict with a narrow set of tokens (right now, only 100-127) take a penatly
 byte for typing.
 
 Since this format has features we expect developers to contiously leverage it
-seems worth it to make this tradeoff. Samples of chain data show, no big surprise,
+seems worth it to make this tradeoff since developers can often find alternative
+integer based representations of their structures. Also, samples of chain data show, no big surprise,
 frequent use of large numbers. Reducing the space used for large numbers is
 more important than shaving a delimiter token from small containers and string/byte
 values.
@@ -129,15 +132,15 @@ JSON serializations are almost always larger than ZDAG unless you craft an attac
 table in order to intentionally create a larger serialization. This is quite
 difficult when comparing to JSON because the values are limited to UTF-8 and it follows
 a very similar compression scheme to VARINT which is what we use for the table
-pointers. However, you can use byte data to craft an attack specifically against
+pointers. However, you can use byte values to craft an attack specifically against
 ZDAG that can more easily overwhelm the compression table and produce a larger
 serialization, but I see no reason to believe data that is designed for these attacks
 is representative of common user data and these are easily avoidable penalties
 if you're shaping data for ZDAG.
 
-The rest of the compression techniques in ZDAG are designed fall into two categories:
+The rest of the compression techniques in ZDAG fall into two categories:
 
-* Reduce the necessary typing tokens by finding patterns of consistent typing.
+* Reduce the necessary typing tokens by finding consistent typing patterns.
 * Reduce the overhead of VARINT pointers whenever those pointers occur linearly.
   This is done for data structures that have a guaranteed ordering (map) and
   also for containers that just happen to occur linearly (which you can program/design
@@ -773,6 +776,15 @@ rules before passing the list to ZDAG and you'll get DELTA compression of the ta
 It's doubtful you can find a way to align your values to sort neatly against the keys, but
 it may happen and it's very easy to detect since we already have to iterate over the encoded
 form in order to check for list and map typing rules already.
+
+## STRUCTURE_VALUE_RANGE_TYPING **NEW!**
+
+In an untyped collection, once there are two occurences of a type you can trade the regular
+value type tokens for new tokens without additional cost.
+
+In untyped lists and maps we can use a different typing token to open a type range. The indexes
+in this range are +2 so that the subsequent INDEX reads can safely use 0 for closing the container
+and 1 for closing the range.
 
 ## ROOT_COMPRESSION
 
