@@ -10,12 +10,12 @@ ZDAG allows you to write your own compression right into your
 data structure.
 
 ZDAG hands you a compression engine for you to structure your
-data into for compression rates far beyond what a generic algorithm
-can give you because you can shape your data to fit.
+data into for compression rates far beyond what just a generic string
+compression algorithm can give you because you can shape your data to fit.
 
 ZDAG offers you:
 
-* A compression table to de-duplicate string values, byte values, links
+* A compression table to de-duplicate string values, byte values, [links](#Linking)
 and map keys.
 * De-tokenization of well typed maps and lists.
 * ZDAG-DEFLATE variant applies additional deflate compression
