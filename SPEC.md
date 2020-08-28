@@ -638,7 +638,7 @@ _______________
 | 1 | "world" |
 ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
-{     "hello", "world", "world", "hello" }     <-- INPUT
+{     "hello": "world", "world": "hello" }     <-- INPUT
 OPEN  KEY      VAL      KEY      VAL     CLOSE <-- SYNTAX
 113   0        1        1        0       0     <-- BINARY
 STR   DELTA    INDEX    DELTA  INDEX           <-- MAP_ALGO
