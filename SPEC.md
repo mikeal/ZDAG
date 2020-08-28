@@ -240,10 +240,9 @@ This allows for a 64b number space for any index/length which we then compress
 even further by reducing the size of the number we encode. This
 means we will almost always keep the length to a single byte.
 
-In some cases we need to reserve 0 for termination of a sequence and in
-one case we also need to reserve an additional token as 1.
+In some cases we need to reserve 0 and 1 as tokens.
 This means that we can't always use 0 and 1 as valid DELTAs. So we store the
-DELTA +1 or +2 in these specific cases, which reduces the available
+DELTA +2 in that specific cases, which reduces the available
 compression addresses by the lowest possible amount.
 
 These are the cases where we use DELTA compression:
@@ -560,7 +559,7 @@ ___________
 {    "a"      9,  "b":     9,  "c":    9   }     <-- INPUT
 OPEN KEY      VAL KEY      VAL KEY     VAL CLOSE <-- SYNTAX
 119  0        9   1        9   1       9   0     <-- BINARY
-MAP  DELTA+0      DELTA+1      DELTA+1           <-- DELTA_MAP_ALGO
+MAP  DELTA        DELTA        DELTA             <-- DELTA_MAP_ALGO
 ```
 
 When you combine the savings of the DELTA encoding here and in the creation of the
