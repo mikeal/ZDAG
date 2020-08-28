@@ -92,10 +92,10 @@ most common and split on it so that it de-duplicates.
 
 ```js
 [
-  [ '2020-08-27T', '03:19:40.0' , CID(1) ],
+  [ '2020-08-27T',  '03:19:40.0',  CID(1)      ],
   /*
- 118   125  256 1   125  0       117 8       126
-LIST   STR  INDEX   STR  INDEX  LINK INDEX   END_LIST
+ 118   125  256 1   125  0         117 8       126
+LIST   STR  INDEX   STR  INDEX    LINK INDEX   END_LIST
   */
 ]
   // ... and on and on for 244 more entries over many months
