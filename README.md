@@ -26,8 +26,26 @@ and map keys.
   for linking between encoded structures.
 
 Most data will show a slight compression gain with ZDAG. But data
-structures *designed* for ZDAG can achieve compression rates
-greater than any generic compression algorithm and format.
+structures *designed* for ZDAG can achieve structural compression rates
+greater than any generic compression algorithm and format. This
+compression is serialized to its own header, so you can still use
+standard string compression techniques on the string data without
+attempting to string compress ZDAG's structural compression **or**
+the hash based links.
+
+This means that ZDAG's compression engine does not compete with
+string compression at all, it actually complements it.
+
+In fact, even if all you have is a single string or binary value
+like a text file, you can use ZDAG to chunk that up for de-duplication using domain
+specific logic (like de-duplicating common syntax in a programming
+language by chunking around it). You can bank those de-duplication
+savings and then apply string compression to the remaining unique
+strings using ZDAG-DEFLATE or another string compression variant.
+
+This means you can write domain specific compression algorithms that decompress
+with nothing but the standard ZDAG decoder (and INFLATE if using
+the ZDAG-DEFLATE variant).
 
 ## Compression Table
 
