@@ -21,6 +21,8 @@ and map keys.
 * ZDAG-DEFLATE variant applies additional deflate compression
   to **only** the compressable data values.
 * Delta compression of map key pointers and well ordered sets.
+* Universal hashed based links ([CID](https://github.com/multiformats/cid))
+  for linking between encoded structures.
 
 Most data will show a slight compression gain with ZDAG. But data
 structures *designed* for ZDAG can achieve compression rates
