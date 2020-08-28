@@ -478,7 +478,7 @@ and other formats that don't require external schemas.
 
 It is relatively simple to add string compression in variant codecs like
 `zdag-deflate` since all the potential string data is already packed
-into a contained header. In fact, the initial POC for zdag included
+into its own header. In fact, the initial POC for zdag included
 this option and while it didn't show reasonable gains for blockchain
 value data it would likely be much more effective when applied
 to a block that consists mainly of UTF8 string data.
@@ -549,16 +549,23 @@ sorted against the value compression table. If you were to try and re-use a key 
 the map would terminate.
 
 ```
-{    "a"      9,  "b":     9,  "c":    9   }
-OPEN KEY      VAL KEY      VAL KEY     VAL CLOSE
-119  0        9   1        9   1       9   0
-MAP  DELTA+0      DELTA+1      DELTA+1
+Value Compression Table
+___________
+| 0 | "a" |
+| 1 | "b" |
+| 2 | "c" |
+‾‾‾‾‾‾‾‾‾‾‾
+
+{    "a"      9,  "b":     9,  "c":    9   }     <-- INPUT
+OPEN KEY      VAL KEY      VAL KEY     VAL CLOSE <-- SYNTAX
+119  0        9   1        9   1       9   0     <-- BINARY
+MAP  DELTA+0      DELTA+1      DELTA+1           <-- DELTA_MAP_ALGO
 ```
 
 When you combine the savings of the DELTA encoding here and in the creation of the
-table we can likely create this entire stucture against a compression table for less
-space that most formats can encode a map even if we never see any benefit from
-de-duplication.
+value compression table itself we can likely create this entire stucture against
+a compression table for less space than most formats can encode a map even
+if we never see any benefit from de-duplication.
 
 Not only does this compress the size of the key references, it makes it **IMPOSSIBLE**
 to encode an indeterministic map.
@@ -623,6 +630,21 @@ This means that a list of only bytes or strings costs only 1 byte to open, 1 to 
 every index in the compression table it references, effectively shortening the list encoding
 by a byte for every entry greater than zero. The same efficiency gain is made with typed maps
 which adds to the efficiency gains map already has from STRUCTURE_MAP_KEY_DELTAS.
+
+```
+Value Compression Table
+_______________
+| 0 | "hello" |
+| 1 | "world" |
+‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+
+{     "hello", "world", "world", "hello" }     <-- INPUT
+OPEN  KEY      VAL      KEY      VAL     CLOSE <-- SYNTAX
+113   0        1        1        0       0     <-- BINARY
+STR   DELTA+0  INDEX    DELTA+1  INDEX         <-- MAP_ALGO
+TYPED
+MAP
+```
 
 ### STRUCTURE_TYPED_SET **NEW!**
 
