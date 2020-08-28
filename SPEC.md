@@ -1055,6 +1055,12 @@ OPEN  VAL    VAL    VAL    CLOSE    <-- SYNTAX
 BDL   DELTA  DELTA  DELTA  END LIST <-- BYTE_TYPED_LIST
 ```
 
+A ZBL can also be a regular LIST as long as it only contains
+other LISTs, BYTEs, BDLs or BTLs. This is so that an encoder
+can leverage segments of the byte list that are well ordered
+with high indexes and would benefit from delta compression
+if the list was chunked into typed parts.
+
 
 ## ZBL_DECODE_FIRST_BYTE
 
