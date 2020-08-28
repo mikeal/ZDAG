@@ -80,10 +80,10 @@ This also works for maps, so `b` is 1 byte smaller than `a`.
 
 ## Delta compressed map key pointers and well ordered sets.
 
-As the compression table grows pointers to the table grow
-in size as well to represent higher numbered indexes.
+As the compression table grows pointers to table entries also grow
+in size as well to represent larger numbers.
 
-Map keys are delta compressed. This means that every entry
+But map keys are delta compressed. This means that every entry
 in the map only has to store the delta from the prior key
 in the sort ordering of the compression table. This reliably
 keeps map keys much cheaper than other values when the
@@ -91,6 +91,26 @@ compression table is large.
 
 The same is true of well typed lists and maps when the values
 happen to match the sort order of the compression table.
+
+```js
+import varint from 'varint'
+
+const buffers = []
+
+let i = 0
+while (0 < 256) {
+  buffers.push(varint.encode(i))
+  i++
+}
+
+const a = buffers
+cosnt b = buffers.reverse()
+```
+
+In this example `a` will be 126 bytes smaller than b because
+the entries in its list were sorted in alignment with the table.
+That's because the delta compression kept the pointers low
+while `b` ends up using 126 2byte pointers.
 
 ## Other featurs
 
