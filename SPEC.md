@@ -648,13 +648,16 @@ MAP
 
 ### STRUCTURE_TYPED_SET **NEW!**
 
-The IPLD data model does not have a Set. However, if a list is offered to ZDAG that:
+The IPLD data model does not have a Set. However, if a collection is offered to ZDAG that:
 
 * Has more than one entry
 * Has no duplicate entries
-* Is ordered such that the pointer references only increase
+* Is ordered such that the pointer references only increase.
 
-You MUST encode the list as a typed set instead of a list.
+We can apply this to both lists and map values when these cases occur.
+
+You MUST encode the list as a typed LIST_SET or LIST_MAP instead of the regular typed
+version.
 
 Note: the data will still decode to a regular list as far as the IPLD Data Model is concerned
 this is strictly a compression rule that must be enforced reliably at encode and decode time
@@ -665,6 +668,10 @@ prior key +1 and terminating with 0.
 
 This means that when you have a unique un-ordered list all you need to do is apply the sorting
 rules before passing the list to ZDAG and you'll get DELTA compression of the table pointers.
+
+It's doubtful you can find a way to align your values to sort neatly against the keys, but
+it may happen and it's very easy to detect since we already have to iterate over the encoded
+form in order to check for list and map typing rules already.
 
 ## ROOT_COMPRESSION
 
