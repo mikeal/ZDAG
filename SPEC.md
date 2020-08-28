@@ -734,27 +734,40 @@ const STRUCTURE_VARINT                  = 127
 
 const STRUCTURE_LIST_CLOSE              = 126
 
+const STRUCTURE_STRING                  = 125
+const STRUCTURE_BYTE                    = 124
+const STRUCTURE_LINK                    = 123
 
-const STRUCTURE_STRING_INDEX            = 125
-const STRUCTURE_BYTE_INDEX              = 124
-const STRUCTURE_NUll                    = 123
-const STRUCTURE_BOOLEAN_TRUE            = 122
-const STRUCTURE_BOOLEAN_FALSE           = 121
-const STRUCTURE_FLOAT                   = 120
-const STRUCTURE_MAP_START               = 119
-const STRUCTURE_LIST_START              = 118
-const STRUCTURE_LINK_INDEX              = 117
-const STRUCTURE_SIGNED_VARINT           = 116
-const STRUCTURE_SIGNED_FLOAT            = 115
-const STRUCTURE_ZERO_POINT_FLOAT        = 114
-const STRUCTURE_STRING_TYPED_MAP        = 113
-const STRUCTURE_BYTE_TYPED_MAP          = 112
-const STRUCTURE_LINK_TYPED_MAP          = 111
-const STRUCTURE_STRING_TYPED_LIST       = 110
-const STRUCTURE_BYTE_TYPED_LIST         = 109
-const STRUCTURE_LINK_TYPED_LIST         = 108
-const STRUCTURE_EMPTY_MAP               = 107
-const STRUCTURE_EMPTY_LIST              = 106
+const STRUCTURE_NUll                    = 122
+const STRUCTURE_BOOLEAN_TRUE            = 121
+const STRUCTURE_BOOLEAN_FALSE           = 120
+
+const STRUCTURE_FLOAT                   = 119
+const STRUCTURE_SIGNED_VARINT           = 118
+const STRUCTURE_SIGNED_FLOAT            = 117
+const STRUCTURE_ZERO_POINT_FLOAT        = 116
+
+const STRUCTURE_MAP_START               = 115
+const STRUCTURE_LIST_START              = 114
+
+const STRUCTURE_EMPTY_MAP               = 113
+const STRUCTURE_EMPTY_LIST              = 112
+
+const STRUCTURE_STRING_TYPED_MAP        = 111
+const STRUCTURE_BYTE_TYPED_MAP          = 110
+const STRUCTURE_LINK_TYPED_MAP          = 109
+
+const STRUCTURE_STRING_TYPED_LIST       = 108
+const STRUCTURE_BYTE_TYPED_LIST         = 107
+const STRUCTURE_LINK_TYPED_LIST         = 106
+
+const STRUCTURE_BYTE_DELTA_LIST         = 105
+const STRUCTURE_LINK_DELTA_LIST         = 104
+const STRUCTURE_STRING_DELTA_LIST       = 103
+
+const STRUCTURE_BYTE_DELTA_MAP          = 102
+const STRUCTURE_LINK_DELTA_MAP          = 101
+const STRUCTURE_STRING_DELTA_MAP        = 100
 ```
 
 Special tokens for first byte parsing to support
@@ -1005,19 +1018,39 @@ while (INDEX !== 0 && DATA_REMAINING() > 0) {
 
 # ZBL_DECODER
 
-zbl (zdag byte list) is a strict subset of zdag. It's a valid list of bytes or an empty
+ZBL (zdag byte list) is a strict subset of zdag. It's a valid list of bytes or an empty
+
+ZBL is then a generic compression format for that can be used by application specific
+compression algorithms to leverage de-duplication and construct a byte list.
+
+This can then be combined with ZDAG_DEFLATE to apply further string compression to the
+string data.
+
+```
+Value Compression Table
+___________
+| 0 | "a" |
+| 1 | "b" |
+| 2 | "c" |
+‾‾‾‾‾‾‾‾‾‾‾
+
+[    "a"      "b":     9,  "c":    9   }     <-- INPUT
+OPEN KEY      KEY      VAL KEY     VAL CLOSE <-- SYNTAX
+119  0        1        9   1       9   0     <-- BINARY
+MAP  DELTA+0  DELTA+1      DELTA+1           <-- DELTA_MAP_ALGO
+```
+
+## ZBL_DECODE_FIRST_BYTE
 
 An empty zbl is encoded as a single 122 byte [STRUCTURE-EMPTY-LIST](#STRUCTURE-EMPTY-LIST).
 
 The only other valid first byte is 0. Denoting an empty links header.
 
-## ZBL_DECODE_FIRST_BYTE
-
 ```js
 const [ code ] = READ(1)
 if (code === 0) {
   VALUE_TABLE = HEADER_VALUES()
-} else if (code === 122) {
+} else if (code === STRUCTURE_BYTE_TYPED_LIST || code === STRUCTURE_BYTE_DELTA_LIST) {
   return []
 } else {
   throw new Error('ZBL: INVALID FIRST BYTE')
@@ -1032,7 +1065,7 @@ cannot begin with anything other than 119.
 
 ```js
 const [ code ] = READ(1)
-if (code !== 119) {
+if (code !== STRUCTURE || ) {
   throw new Error(`ZBL: INVALID STRUCTURE ${code}`)
 }
 return STRUCTURE_TYPED_LINKS_LIST()
