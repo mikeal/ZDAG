@@ -1,4 +1,4 @@
-# zdag
+# ZAG
 
 ZDAG is a format similar to JSON or CBOR. You can encode
 and decode all the same types in ZDAG as you would
