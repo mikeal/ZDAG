@@ -26,7 +26,7 @@ Most data will show a slight compression gain with ZDAG. But data
 structures *designed* for ZDAG can achieve compression rates
 greater than any generic compression algorithm and format.
 
-** Compression Table
+## Compression Table
 
 The entire structure you pass to be encoded by ZDAG is traversed
 and every string value, byte value, link, and map key are sorted
@@ -53,7 +53,7 @@ binary representation in every implementation. Most of these
 determinism rules don't even have to be handled by validation
 code because they are part of the compression algorithm.
 
-** De-tokenization of well typed maps and lists.
+## De-tokenization of well typed maps and lists.
 
 When a list or map contains values of all the same type you also
 drop the typing token for every value, saving you 1 byte per
@@ -78,7 +78,7 @@ const b = { 'true': 'true', 'false', 'false' }
 
 This also works for maps, so `b` is 1 byte smaller than `a`.
 
-** Delta compressed map key pointers and well ordered sets.
+## Delta compressed map key pointers and well ordered sets.
 
 As the compression table grows pointers to the table grow
 in size as well to represent higher numbered indexes.
