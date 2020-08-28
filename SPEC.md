@@ -551,7 +551,7 @@ the map would terminate.
 ```
 {    "a"      9,  "b":     9,  "c":    9   }
 OPEN KEY      VAL KEY      VAL KEY     VAL CLOSE
-119  0        9   1        9   1       9
+119  0        9   1        9   1       9   0
 MAP  DELTA+0      DELTA+1      DELTA+1
 ```
 
