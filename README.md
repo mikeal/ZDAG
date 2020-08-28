@@ -112,6 +112,31 @@ the entries in its list were sorted in alignment with the table.
 That's because the delta compression kept the pointers low
 while `b` ends up using 126 2byte pointers.
 
+## Linking
+
+ZDAG includes a native link type that uses CID. A CID is a hash
+based pointer.
+
+This allows you to construct data structures that link between each
+other by hash.
+
+That means you can use ZDAG to de-duplicate data shared between
+different pieces of encoded data. So if you want two pieces
+of encoded data to include a third piece of common data you
+can have the first two pieces of data link to the third which
+means you've compressed the total structure across differ parts
+through another higher form of de-duplication.
+
+Another nice feature of links is that, similary to URL schemes
+like `ftp://` and `http://`, different pieces of data can
+be encoded in different formats. So if there is data
+that was already encoded in another format you don't have to
+re-encode it with ZDAG in order to de-duplicate it.
+
+You can link to any hash based format, like those found in
+`git`, `IPFS`, `Bitcoin`, `ETH`, and many more. And of course
+you can link different pieces of ZDAG data between each other.
+
 ## Other features
 
 * fully deterministic
