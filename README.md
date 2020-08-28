@@ -107,3 +107,8 @@ Constraints:
 * Does not support anything not in the IPLD data model
 * Blocks must be written transactionally (no streaming)
 * Every serialization must be a single, complete value type
+
+# Experimental
+
+The code base changes daily, breaking changes without notice,
+and the spec is still being written.
