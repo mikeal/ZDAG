@@ -2,7 +2,7 @@
 
 ZDAG is a format similar to JSON or CBOR. You can encode
 and decode all the same types in ZDAG as you would
-JSON or CBOR.
+JSON or CBOR without any additional schema requirements.
 
 ZDAG is designed as a compressor.
 
