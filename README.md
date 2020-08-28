@@ -47,7 +47,7 @@ ZDAG.
 ```
 
 The compression table is deterministically ordered, so you can predict
-the ordering of all the keys and values in your structure but
+the table ordering of all the keys and values in your structure but
 you can't alter the sort order programmatically.
 
 ZDAG is a fully deterministic format. Data can only ever be encoded
