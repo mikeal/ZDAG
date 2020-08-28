@@ -20,6 +20,7 @@ and map keys.
 * De-tokenization of well typed maps and lists.
 * ZDAG-DEFLATE variant applies additional deflate compression
   to **only** the compressable data values.
+* (TODO) ZDAG-BROTLI variant
 * Delta compression of map key pointers and well ordered sets.
 * Universal hashed based links ([CID](https://github.com/multiformats/cid))
   for linking between encoded structures.
@@ -139,6 +140,32 @@ re-encode it with ZDAG in order to de-duplicate it.
 You can link to any hash based format, like those found in
 `git`, `IPFS`, `Bitcoin`, `ETH`, and many more. And of course
 you can link different pieces of ZDAG data between each other.
+
+## ZDAG-DEFLATE & ZDAG-BROTLI
+
+Normally it's a terrible idea to combine compressors as it's
+expensive and yields little gain. However, all of ZDAG's compression
+is happening in the structure against a compression table that
+stores all the string and byte data.
+
+This actually puts us in an optimal path for additional string
+compression as we have already isolated where applying this
+compression will be most effective and can apply it there
+and nowhere else.
+
+In fact, the delta compression we use on this header inceases
+the frequency of common separators between each of your values,
+and they are already ordered, so it's actually ideally prepared
+for a string compressor.
+
+This is a separate variant codec because:
+
+* Optionality in choosing the string would break determinism.
+* We don't want to turn it on by default because if the values
+  are byte data they may already be compressed or are encrypted.
+  This is actually the majority case with blockchain data.
+* We want to leave room for improved string compressors to be
+  applied to this header in the future.
 
 ## Other features
 
