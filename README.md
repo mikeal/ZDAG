@@ -9,8 +9,8 @@ ZDAG is designed as a compressor.
 ZDAG allows you to write your own compression right into your
 data structure.
 
-ZDAG hands you a compression engine for you to structure your
-data into for compression rates far beyond what just a generic string
+ZDAG hands you a compression engine for you to program your
+data into for structural compression rates far beyond what just a generic string
 compression algorithm can give you because you can shape your data to fit.
 
 ZDAG offers you:
