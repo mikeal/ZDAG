@@ -19,7 +19,7 @@ ZDAG offers you:
 and map keys.
 * De-tokenization of well typed maps and lists.
 * ZDAG-DEFLATE variant applies additional deflate compression
-  to only the string data.
+  to **only** the compressable data values.
 * Delta compression of map key pointers and well ordered sets.
 
 Most data will show a slight compression gain with ZDAG. But data
