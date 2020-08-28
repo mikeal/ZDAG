@@ -57,6 +57,107 @@ deterministic order of some sort for maps. This is not always enforced because
 prior formats (`dag-json` and `dag-cbor`) have to contend with a lack of determinism
 and end up having to work with data that may have been improperly encoded.
 
+# COMPARISONS_AND_MOTIVATION
+
+The initial motivation for this format was finding a more compact serialization
+than CBOR for *most*, but not all, data. The approach I decided to take was
+sorting all the links into their own table so that we could have a CID specific
+compression routine. That lined all the CID's in-order for a compression table,
+which provides de-duplication and also cuts down on the bytes we're using.
+
+At this point, we're already using a compression table, why not build another one
+to hold all the map keys, string and byte values. That way we also de-duplicate
+common map keys. Then the structure is just a series of tokens that give us type
+hints, containers (maps and lists), constants (null, true, false), number values,
+and pointers to each compression table.
+
+This is large departure from the approach taken by JSON and CBOR and it is not
+entirely without cost.
+
+The compression table for links is "free" when compared against link representations
+in other formats. CIDs have existing parsing rules that allow us to compress them
+without using extra length encodings or extra delimiter tokens for anything but
+closing the header.
+
+But the values table is different, we have to give the length
+of every value in the table, and the total size of the header, which could cost
+more bytes than just inlining the values when there is no de-duplications.
+
+For instance, when JSON encodes a string it uses a closing and opening delimiter
+between the value data which costs 2 bytes. Most often, ZDAG will use 1byte
+(read about DELTA compression below to see how we keep this low even
+when the values are large in size) for the length of the value in the table
+and then *may* need to use both a token for the typing of the value *and* a
+VARINT pointer to the table index.
+
+We're able to be reliably be smaller than JSON for small blocks because we cut
+many of the separator tokens in containers, so the table ends up not costing us
+anything, but CBOR is a bit better than that. CBOR has a few different ways
+it encodes data.
+
+CBOR uses a linear tokenization like JSON but it's a binary format and is much
+smarter about how it uses tokens to reduce size. There's also optionality in CBOR
+(something we have to turn off in `dag-cbor` to ensure determinism) so there
+are ways to encode small containers and values that reduce the space required for
+CBOR's tokens. However, there's a cost to the approach CBOR takes as well.
+
+In CBOR, only very small numbers (0-32?) can be inlined as values. That means every
+number over 32 requires a type hint. This is a necessary tradeoff for CBOR to
+inline other information about small values and containers to save token space.
+
+ZDAG takes a different approach that optimizes for storing large numbers without
+a typing token, so if you have lots of numbers the token frequence of ZDAG will
+be much lower than CBOR and will give a smaller representation even without
+hitting other optimizations.
+
+ZDAG uses numbers in the high end of the 1byte VARINT range. This allows us to
+inline integers both higher and lower than the token range. Only integers that
+conflict with a narrow set of tokens (right now, only 100-127) take a penatly
+byte for typing.
+
+Since this format has features we expect developers to contiously leverage it
+seems worth it to make this tradeoff. Samples of chain data show, no big surprise,
+frequent use of large numbers. Reducing the space used for large numbers is
+more important than shaving a delimiter token from small containers and string/byte
+values.
+
+Still, you can find plenty of cases where a CBOR representation is slightly smaller
+than ZDAG, but by making small alterations to that structure you can consistenly
+find a smaller ZDAG representation, sometimes dramatically smaller.
+
+JSON serializations are almost always larger than ZDAG unless you craft an attack against the ZDAG compression
+table in order to intentionally create a larger serialization. This is quite
+difficult when comparing to JSON because the values are limited to UTF-8 and it follows
+a very similar compression scheme to VARINT which is what we use for the table
+pointers. However, you can use byte data to craft an attack specifically against
+ZDAG that can more easily overwhelm the compression table and produce a larger
+serialization, but I see no reason to believe data that is designed for these attacks
+is representative of common user data and these are easily avoidable penalties
+if you're shaping data for ZDAG.
+
+The rest of the compression techniques in ZDAG are designed fall into two categories:
+
+* Reduce the necessary typing tokens by finding patterns of consistent typing.
+* Reduce the overhead of VARINT pointers whenever those pointers occur linearly.
+  This is done for data structures that have a guaranteed ordering (map) and
+  also for containers that just happen to occur linearly (which you can program/design
+  for if you're serializing a list of unorded unique entries).
+
+When data falls into these rules it can dramatically reduce the token
+overhead to well below CBOR or any comparable format. And since this tokenization is
+in a separate header these compression techniques don't compete with string compression
+you may want to apply to the entire block. Just the opposite, all the data
+that can benefit from string compression is isolated into its own header so if you
+choose to compress it you are handing the string compressor a well sorted
+string without the data that would be problematic to compress (hash links and VARINTs).
+
+In short, the approach ZDAG takes is not without tradeoffs. The compression table **is
+not necessarily "free"**, especially when there is no de-duplication across the structure
+but the gains we make elsewhere tend to make ZDAG serializations smaller anyway without
+even designing for them and structures that **are** designed for them can effectively
+tool their own forms of application specific compression by altering the shape of their
+data to match the compression paths of ZDAG.
+
 # COMPRESSION
 
 ## DETERMINISM
