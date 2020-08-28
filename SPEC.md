@@ -540,8 +540,20 @@ eliminates the performance difference of different key types in other formats.
 Since maps MUST be deterministically sorted and all map keys are already in a deterministically
 sorted value index we can write all map keys using DELTA compression.
 
-We reserve 0 for termination of the sequence. We then encode the DELTA +1 for every
-map key.
+We reserve 0 for termination of the sequence. Since we have a separate token for empty
+maps, the 0 is available for parsing the first key reference. Here 0 is a valid reference
+to the first values table entry.
+
+Every subsequent index MUST increase by at least 1 because the map is determisitically
+sorted against the value compression table. If you were to try and re-use a key index
+the map would terminate.
+
+```
+{    "a"      9,  "b":     9,  "c":    9   }
+OPEN KEY      VAL KEY      VAL KEY     VAL CLOSE
+119  0        9   1        9   1       9
+MAP  DELTA+0      DELTA+1      DELTA+1
+```
 
 When you combine the savings of the DELTA encoding here and in the creation of the
 table we can likely create this entire stucture against a compression table for less
@@ -549,8 +561,7 @@ space that most formats can encode a map even if we never see any benefit from
 de-duplication.
 
 Not only does this compress the size of the key references, it makes it **IMPOSSIBLE**
-to encode an indeterministic map, since you're only able to increase the index of
-a sorted table and if you try to write the same entry twice you'll terminate the map.
+to encode an indeterministic map.
 
 ### STRUCTURE_CONTAINER_TYPING
 
@@ -777,6 +788,27 @@ const SERIALIZE = () => {
   return VALUES.flat(Infinity)
 }
 ```
+
+### NOTES ON ENCODING
+
+We have specific tokens for empty maps and lists because:
+
+* It saves us a token to close the structure
+* We need to ensure determinism and having typed and untyped list
+  opens us up to potential bugs in empty types vs untyped collections.
+  Instead, we make the valdation and encoding a little more straightforward
+  by just requiring that empty maps and lists be encoded with their own
+  token.
+
+
+While developing this algorithm, one place to look for savings is any place
+data *happens* to also follow the sorting of one of the tables. That's a
+place we can use DELTA compression if we give it its own type token.
+
+Another place to find savings is anywhere that we're encoding type
+information in a collection. We can detect if the items in the collection
+are of that type and assign it a typed collection token.
+
 
 ### ADD_VALUE
 
