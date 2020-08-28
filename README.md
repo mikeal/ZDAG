@@ -107,7 +107,10 @@ happen to match the sort order of the compression table.
 Also keep in mind that maps don't require a typing token for their key
 because we only allow one map key type. This means maps are very cheap in ZDAG
 compared to other formats and the keys aren't just de-duplicated across the
-structure, the pointers are kept quite small.
+structure and the pointers are kept quite small.
+
+If the entries in a list match the sorting order of the compression table then
+the same thing happens, the indexes are delta encoded reducing their size.
 
 ```js
 import varint from 'varint'
@@ -138,7 +141,7 @@ based pointer.](https://github.com/multiformats/cid)
 This allows you to construct data structures that link between each
 other by hash.
 
-That means you can use ZDAG to de-duplicate data shared between
+With this you can use ZDAG to de-duplicate data shared between
 different pieces of encoded data. So if you want two pieces
 of encoded data to include a third piece of common data you
 can have the those two pieces of ZDAG encoded data link to the third, which
@@ -160,6 +163,13 @@ you can actually share these larger graphs of compressed data
 in decentralized networks by their CID (you can derive an address
 for anything you encode with ZDAG by hashing it) and even link to
 your ZDAG compressed data in blockchain transactions.
+
+Finally, the links header is compressed using CID specific parsing
+rules to de-duplicate common prefixes and pack the header together without
+special tokens or extra length encodings. This puts links in their
+own compression table, which means they have their own address
+space apart from the values, optimizing the total available address
+space.
 
 ## ZDAG-DEFLATE & ZDAG-BROTLI
 
