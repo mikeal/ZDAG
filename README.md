@@ -112,7 +112,7 @@ the entries in its list were sorted in alignment with the table.
 That's because the delta compression kept the pointers low
 while `b` ends up using 126 2byte pointers.
 
-## Other featurs
+## Other features
 
 * fully deterministic
 * supports the full IPLD data model
@@ -122,7 +122,7 @@ while `b` ends up using 126 2byte pointers.
 * some paths can even be ruled out of being available simply by checking
   the lengths of potential map keys
 
-Constraints:
+## Constraints:
 
 * Does not support anything not in the IPLD data model
 * Blocks must be written transactionally (no streaming)
