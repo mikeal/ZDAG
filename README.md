@@ -71,7 +71,8 @@ is because `a` needs to prefix the strings with a typing token and
 b does not because the token used to open the list also hinted
 the type for every entry.
 
-The same rules are applied for link, string, and byte values.
+The same rules are applied when string, link, or byte types are
+used consisently.
 
 ```js
 const a = { 'true': 'true', 'false', false }
