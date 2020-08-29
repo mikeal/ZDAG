@@ -786,6 +786,24 @@ In untyped lists and maps we can use a different typing token to open a type ran
 in this range are +2 so that the subsequent INDEX reads can safely use 0 for closing the container
 and 1 for closing the range.
 
+## STRUCTURE_VALUE_TABLES **NEW!**
+
+Whenever a list has more than one entry, and all of those entries are maps or all of those
+entries are lists, we are able to use a TABLE_MAP or TABLE_LIST compression routine.
+
+Here we encode a new token to open the parent structure and then write the column length, row
+length, and type hinting for all the columns. If a column does not have consistent typing we
+write a token for UNTYPED and parse the value normally.
+
+This saves us an open and close token for every row **and** a closing token for the table
+since we know the length of the parse. We also save a typing token *per row* for every
+consistently typed column. If the lists or maps are already typed maps or lists, we save even
+cut down the total type hints for the table to 1 token for table.
+
+This should produce a massive compression gain on a fairly common pattern. The output
+of every CSV library produces a structure like this, and it's a very easy structure
+to program for if you know there are gains this large to be made.
+
 ## ROOT_COMPRESSION
 
 A few final rules shave off the last unnecessary bytes.
@@ -808,6 +826,86 @@ to this spec and the tooling for it and nothing below here has been edited or po
 even read once after writing.
 
 
+
+# Thoughts on writing string compression w/ ZDAG
+
+This warrants a lot of additional thought so I'm going to start putting
+down my thoughts for wider discussion.
+
+ZDAG has a limited space for compression of string data and it's worth
+considering when it's useful and when it's not worth it.
+
+First of all, we have rather good string compression (DEFLATE, BROTLI, etc)
+and it's best not to compete directly with it for generic compression cases.
+
+Let's start with an example where we probably don't want to attempt to
+compress the string data ourselves.
+
+```js
+[ { "time": 98237981272, "msg": "I'm a string of user input data." },
+  { "time": 23904293930, "msg": "Another user provided string" },
+  // ... and on and on for many entries
+]
+```
+
+These variably sized strings of user input at not something the developer
+working with this data structure can predict. This means we are highly
+unlikely to find a better method of compression than a standard string compression
+algorithm because we have a much more limited set of compression techniques.
+
+But when the data is more predictable there are easy wins as long as
+we avoid competing with a generic compression algorithm and simply try to compliment
+it.
+
+```js
+[ { "time": 98237981272, "msg": "WARNING: Node-1 took 12843ms to respond" },
+  { "time": 23904293930, "msg": "ERROR: Node-2 is not responding" },
+  ...
+]
+```
+
+These messages are log data with an obvious know delimiter so we can likely
+save quite a lot of space by chunking around it in order to de-duplicate
+the common pattern. Generic string compression tries to do this too, but we
+are in a position to apply this rule 100% of the time for a single byte
+since the de-duplicate strings are smaller than the other string values.
+
+```js
+[ { "time": 98237981272, "msg": [ "WARNING", "Node-1 took 12843ms to respond" ] },
+  { "time": 23904293930, "msg": [ "ERROR", "Node-1 is not responding" ] },
+  ...
+]
+```
+
+So we added two tokens per message in order to remove 5-7 in de-duplication. Probably
+worth it.
+
+We may be tempted to continue chunking the first part of the next element, but here's where we
+probably need to stop ourselves from getting too clever. Since this list is well typed
+it's only going to cost us a single VARINT for every additional chunk, but these common strings
+are likely to occur a bit less often and are smaller than the more common strings on the left
+(WARING and ERROR). That means chunking them may push the more common strings to the
+higher end of the table to cause all their VARINT pointers to double in size.
+
+We're also starting to compete with the general compression routing now. These strings could
+be de-duplicated by chunking but they can also probably be compressed quite well, probably
+better considering the token costs, using generic string compression with something like
+ZDAG-DEFLATE.
+
+You have to know a lot about the string data in order to beat generic string compression.
+Still, there's more room for application specific compression than you sometimes think.
+
+For instance, code files for different programming languages have well known common
+strings for the syntax. You could write an algorithm that chunked around these and then
+did additional passes over the chunked data to ensure low placement of those strings
+in the compression table. Then you'd want to stop and serialize that list of bytes
+so that you can hand the rest of this problem off to a generic string compression
+algorithm with something like ZDAG-DEFLATE.
+
+One hazard with ZDAG is that it gives you tools that you can be a little too clever with.
+Especially since de-duplication is easily understandable and string compression routines
+are not. It's very hard to estimate what you could save with your chunker compared to a
+generic compression algorithm.
 
 
 # CONSTANTS
