@@ -51,7 +51,7 @@ the ZDAG-DEFLATE variant).
 
 The entire structure you pass to be encoded by ZDAG is traversed
 and every string value, byte value, link, and map key are sorted
-and put into a delta compressed table.
+and put into a compression table.
 
 This means that you can use the same map key, string, or byte
 value as many times over as you like and the serialization will
