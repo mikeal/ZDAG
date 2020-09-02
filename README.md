@@ -61,7 +61,7 @@ So the following object is 50% the size of JSON when encoded with
 ZDAG.
 
 ```js
-{ "hello": "world", "world", "hello" }
+{ "hello": "world", "world": "hello" }
 ```
 
 The compression table is strictly ordered, so you can *predict*
